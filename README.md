@@ -160,9 +160,10 @@ uv run modal deploy app.py
 
 ### Continuous deployment
 
-GitHub Actions keeps lint, tests, and deployment in separate workflows. After a
-push to `master`, the deploy workflow waits for both the `Lint` and `Tests`
-workflows to pass for the same commit before deploying the Modal app.
+GitHub Actions keeps lint, tests, and deployment in separate workflow files.
+Pull requests run the `Lint` and `Tests` workflows directly. After a push to
+`master`, the `Deploy` workflow calls those same reusable workflows and deploys
+the Modal app only after both pass.
 
 Create a Modal token for GitHub Actions, then add its values as repository
 secrets under **Settings → Secrets and variables → Actions**:
