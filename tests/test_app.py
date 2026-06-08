@@ -4,19 +4,14 @@ from pathlib import Path
 from unittest.mock import call, patch
 
 import app
-import publisher
 
 
 class FakeS3Client:
     def __init__(self):
         self.uploads = []
-        self.puts = []
 
     def upload_file(self, filename, bucket, key, *, ExtraArgs):
         self.uploads.append((filename, bucket, key, ExtraArgs))
-
-    def put_object(self, **kwargs):
-        self.puts.append(kwargs)
 
 
 class DbtCommandTest(unittest.TestCase):
@@ -132,7 +127,7 @@ class DbtRunTest(unittest.TestCase):
 
 
 class AppDispatchTest(unittest.TestCase):
-    def test_publish_mode_dispatches_to_parquet_publisher(self):
+    def test_publish_mode_dispatches_to_parquet_publish_job(self):
         with (
             patch("app.run_dbt.remote") as run_dbt,
             patch("app.publish_parquet.remote") as publish_parquet,
@@ -180,18 +175,16 @@ class ParquetPublishingAdapterTest(unittest.TestCase):
             ),
         )
 
-    def test_r2_store_maps_object_metadata_to_s3_arguments(self):
+    def test_upload_parquet_files_uses_fixed_keys_and_no_cache(self):
         client = FakeS3Client()
-        store = app.R2Store(client=client, bucket="aej-data")
-        metadata = publisher.ObjectMetadata(
-            content_type="application/vnd.apache.parquet",
-            cache_control="public, max-age=31536000, immutable",
-        )
 
-        store.upload_file(
-            Path("/tmp/jobs.parquet"),
-            "releases/example/jobs.parquet",
-            metadata=metadata,
+        app.upload_parquet_files(
+            client=client,
+            bucket="aej-data",
+            paths=[
+                Path("/tmp/jobs.parquet"),
+                Path("/tmp/organizations.parquet"),
+            ],
         )
 
         self.assertEqual(
@@ -200,39 +193,21 @@ class ParquetPublishingAdapterTest(unittest.TestCase):
                 (
                     "/tmp/jobs.parquet",
                     "aej-data",
-                    "releases/example/jobs.parquet",
+                    "jobs.parquet",
                     {
                         "ContentType": "application/vnd.apache.parquet",
-                        "CacheControl": "public, max-age=31536000, immutable",
+                        "CacheControl": "no-cache",
                     },
-                )
-            ],
-        )
-
-    def test_r2_store_serializes_json_deterministically(self):
-        client = FakeS3Client()
-        store = app.R2Store(client=client, bucket="aej-data")
-        metadata = publisher.ObjectMetadata(
-            content_type="application/json",
-            cache_control="no-cache",
-        )
-
-        store.put_json(
-            "latest.json",
-            {"release_id": "release", "schema_version": 1},
-            metadata=metadata,
-        )
-
-        self.assertEqual(
-            client.puts,
-            [
-                {
-                    "Bucket": "aej-data",
-                    "Key": "latest.json",
-                    "Body": b'{"release_id":"release","schema_version":1}\n',
-                    "ContentType": "application/json",
-                    "CacheControl": "no-cache",
-                }
+                ),
+                (
+                    "/tmp/organizations.parquet",
+                    "aej-data",
+                    "organizations.parquet",
+                    {
+                        "ContentType": "application/vnd.apache.parquet",
+                        "CacheControl": "no-cache",
+                    },
+                ),
             ],
         )
 

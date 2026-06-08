@@ -1,19 +1,17 @@
-import hashlib
 import json
 import os
 import shlex
 import subprocess
 import tempfile
 from dataclasses import dataclass
-from datetime import UTC, datetime
 from pathlib import Path
 
 import modal
 
-import publisher
-
 PROJECT_ID = "analytics-engineering-jobs"
 PRODUCTION_DATASET = "dbt_prd"
+PARQUET_CONTENT_TYPE = "application/vnd.apache.parquet"
+PARQUET_CACHE_CONTROL = "no-cache"
 
 
 @dataclass(frozen=True)
@@ -37,71 +35,20 @@ MODEL_EXPORTS = (
 )
 
 
-class R2Store:
-    def __init__(self, *, client, bucket: str):
-        self.client = client
-        self.bucket = bucket
-
-    def upload_file(
-        self,
-        path: Path,
-        key: str,
-        *,
-        metadata: publisher.ObjectMetadata,
-    ) -> None:
-        self.client.upload_file(
-            str(path),
-            self.bucket,
-            key,
-            ExtraArgs={
-                "ContentType": metadata.content_type,
-                "CacheControl": metadata.cache_control,
-            },
-        )
-
-    def put_json(
-        self,
-        key: str,
-        payload: dict[str, object],
-        *,
-        metadata: publisher.ObjectMetadata,
-    ) -> None:
-        body = (
-            json.dumps(payload, sort_keys=True, separators=(",", ":")).encode() + b"\n"
-        )
-        self.client.put_object(
-            Bucket=self.bucket,
-            Key=key,
-            Body=body,
-            ContentType=metadata.content_type,
-            CacheControl=metadata.cache_control,
-        )
-
-
 def build_export_query(export: ModelExport) -> str:
     relation = f"`{PROJECT_ID}.{PRODUCTION_DATASET}.{export.relation}`"
     order_by = ", ".join(f"`{column}`" for column in export.order_by)
     return f"select * from {relation} order by {order_by}"
 
 
-def sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as file:
-        for chunk in iter(lambda: file.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
-def export_parquet_artifacts(
+def export_parquet_files(
     *,
     client,
     directory: Path,
-    generated_at: datetime,
-) -> list[publisher.Artifact]:
+) -> list[Path]:
     import pyarrow.parquet as parquet
 
-    release_id = publisher.release_id_for(generated_at)
-    artifacts = []
+    paths = []
     for export in MODEL_EXPORTS:
         table = (
             client.query(build_export_query(export))
@@ -110,17 +57,21 @@ def export_parquet_artifacts(
         )
         path = directory / f"{export.model}.parquet"
         parquet.write_table(table, path, compression="zstd")
-        artifacts.append(
-            publisher.Artifact(
-                model=export.model,
-                key=f"releases/{release_id}/{path.name}",
-                path=path,
-                rows=table.num_rows,
-                size=path.stat().st_size,
-                sha256=sha256_file(path),
-            )
+        paths.append(path)
+    return paths
+
+
+def upload_parquet_files(*, client, bucket: str, paths: list[Path]) -> None:
+    for path in paths:
+        client.upload_file(
+            str(path),
+            bucket,
+            path.name,
+            ExtraArgs={
+                "ContentType": PARQUET_CONTENT_TYPE,
+                "CacheControl": PARQUET_CACHE_CONTROL,
+            },
         )
-    return artifacts
 
 
 def create_bigquery_client():
@@ -134,18 +85,17 @@ def create_bigquery_client():
     return bigquery.Client(project=PROJECT_ID, credentials=credentials)
 
 
-def create_r2_store() -> R2Store:
+def create_r2_client():
     import boto3
 
     account_id = os.environ["R2_ACCOUNT_ID"]
-    client = boto3.client(
+    return boto3.client(
         "s3",
         endpoint_url=f"https://{account_id}.r2.cloudflarestorage.com",
         aws_access_key_id=os.environ["R2_ACCESS_KEY_ID"],
         aws_secret_access_key=os.environ["R2_SECRET_ACCESS_KEY"],
         region_name="auto",
     )
-    return R2Store(client=client, bucket=os.environ["R2_BUCKET_NAME"])
 
 
 def build_dbt_command(cmd: str, *, target: str = "dev") -> list[str]:
@@ -292,25 +242,17 @@ def run_dbt(
     )
 
 
-@app.function(
-    image=image,
-    secrets=[bigquery_secret, r2_secret],
-    timeout=60 * 60,
-)
-def publish_parquet() -> dict[str, object]:
-    generated_at = datetime.now(UTC).replace(microsecond=0)
-    release_id = publisher.release_id_for(generated_at)
+@app.function(image=image, secrets=[bigquery_secret, r2_secret], timeout=60 * 60)
+def publish_parquet() -> None:
     with tempfile.TemporaryDirectory() as temporary_directory:
-        artifacts = export_parquet_artifacts(
+        paths = export_parquet_files(
             client=create_bigquery_client(),
             directory=Path(temporary_directory),
-            generated_at=generated_at,
         )
-        return publisher.publish_release(
-            store=create_r2_store(),
-            release_id=release_id,
-            generated_at=generated_at,
-            artifacts=artifacts,
+        upload_parquet_files(
+            client=create_r2_client(),
+            bucket=os.environ["R2_BUCKET_NAME"],
+            paths=paths,
         )
 
 

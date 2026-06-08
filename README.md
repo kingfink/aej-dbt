@@ -76,22 +76,22 @@ mdbt build --select model_name
 mdbt test --target prd
 ```
 
-Build production models, then publish a new Parquet release:
+Build production models, then publish the Parquet files:
 
 ```bash
 mdbt build --target prd
 mpublish
 ```
 
-Publishing writes versioned, immutable objects and updates `latest.json` only
-after the release is complete:
+Publishing overwrites these fixed R2 objects:
 
 ```text
-releases/<release-id>/jobs.parquet
-releases/<release-id>/organizations.parquet
-releases/<release-id>/manifest.json
-latest.json
+jobs.parquet
+organizations.parquet
 ```
+
+Both objects are uploaded with `Cache-Control: no-cache`. Because they are
+updated separately, clients may briefly see files from different publishes.
 
 Targets write to:
 
