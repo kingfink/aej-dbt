@@ -34,3 +34,6 @@ htmlcov/
 !.vscode/extensions.json
 !.vscode/settings.json
 dbt_internal_packages/
+
+# Local worktrees
+.worktrees/
