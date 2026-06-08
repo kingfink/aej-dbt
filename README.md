@@ -160,8 +160,9 @@ uv run modal deploy app.py
 
 ### Continuous deployment
 
-GitHub Actions runs Ruff and the unit tests for pull requests. After a push to
-`master`, it deploys the Modal app only after both checks pass.
+GitHub Actions keeps lint, tests, and deployment in separate workflows. After a
+push to `master`, the deploy workflow waits for both the `Lint` and `Tests`
+workflows to pass for the same commit before deploying the Modal app.
 
 Create a Modal token for GitHub Actions, then add its values as repository
 secrets under **Settings → Secrets and variables → Actions**:
