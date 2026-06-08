@@ -184,6 +184,47 @@ def dbt_env(target: str, *, dbt_user: str = "", pr_number: str = "") -> dict[str
     return {}
 
 
+def execute_dbt(
+    cmd: str = "build",
+    target: str = "",
+    dbt_user: str = "",
+    pr_number: str = "",
+) -> None:
+    target = (
+        dbt_target(shlex.split(cmd))
+        or target
+        or os.environ.get("AEJ_DBT_TARGET", "dev")
+    )
+    subprocess.run(
+        build_dbt_command(cmd, target=target),
+        check=True,
+        env=os.environ | dbt_env(target, dbt_user=dbt_user, pr_number=pr_number),
+    )
+
+
+def ping_healthcheck(ping_url: str, signal: str = "") -> None:
+    url = ping_url.rstrip("/")
+    if signal:
+        url = f"{url}/{signal}"
+    try:
+        subprocess.run(
+            [
+                "curl",
+                "--fail",
+                "--silent",
+                "--show-error",
+                "--max-time",
+                "5",
+                "--retry",
+                "3",
+                url,
+            ],
+            check=False,
+        )
+    except OSError as error:
+        print(f"Healthchecks.io ping failed: {error}")
+
+
 app = modal.App("aej-dbt")
 
 image = (
@@ -230,6 +271,11 @@ r2_secret = modal.Secret.from_name(
     ],
 )
 
+healthchecks_secret = modal.Secret.from_name(
+    "aej-dbt-healthchecks",
+    required_keys=["HEALTHCHECKS_PING_URL"],
+)
+
 
 @app.function(image=image, secrets=[bigquery_secret], timeout=60 * 60)
 def run_dbt(
@@ -238,15 +284,11 @@ def run_dbt(
     dbt_user: str = "",
     pr_number: str = "",
 ) -> None:
-    target = (
-        dbt_target(shlex.split(cmd))
-        or target
-        or os.environ.get("AEJ_DBT_TARGET", "dev")
-    )
-    subprocess.run(
-        build_dbt_command(cmd, target=target),
-        check=True,
-        env=os.environ | dbt_env(target, dbt_user=dbt_user, pr_number=pr_number),
+    execute_dbt(
+        cmd=cmd,
+        target=target,
+        dbt_user=dbt_user,
+        pr_number=pr_number,
     )
 
 
@@ -270,6 +312,23 @@ def publish_parquet() -> dict[str, object]:
             generated_at=generated_at,
             artifacts=artifacts,
         )
+
+
+@app.function(
+    image=image,
+    secrets=[bigquery_secret, healthchecks_secret],
+    timeout=60 * 60,
+    schedule=modal.Cron("0 * * * *"),
+)
+def hourly_dbt_build() -> None:
+    ping_url = os.environ["HEALTHCHECKS_PING_URL"]
+    ping_healthcheck(ping_url, "start")
+    try:
+        execute_dbt(target="prd")
+    except Exception:
+        ping_healthcheck(ping_url, "fail")
+        raise
+    ping_healthcheck(ping_url)
 
 
 def dispatch(
