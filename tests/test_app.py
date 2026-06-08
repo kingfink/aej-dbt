@@ -1,4 +1,6 @@
+import json
 import subprocess
+import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import call, patch
@@ -159,6 +161,42 @@ class AppDispatchTest(unittest.TestCase):
 
 
 class ParquetPublishingAdapterTest(unittest.TestCase):
+    def test_load_model_exports_reads_json_config(self):
+        with tempfile.TemporaryDirectory() as directory:
+            config_path = Path(directory) / "parquet_exports.json"
+            config_path.write_text(
+                json.dumps(
+                    [
+                        {
+                            "model": "jobs",
+                            "relation": "stg_jobs",
+                            "order_by": ["organization_slug", "job_slug"],
+                        },
+                        {
+                            "model": "organizations",
+                            "relation": "stg_organizations",
+                            "order_by": ["organization_slug"],
+                        },
+                    ]
+                )
+            )
+
+            self.assertEqual(
+                app.load_model_exports(config_path),
+                (
+                    app.ModelExport(
+                        model="jobs",
+                        relation="stg_jobs",
+                        order_by=("organization_slug", "job_slug"),
+                    ),
+                    app.ModelExport(
+                        model="organizations",
+                        relation="stg_organizations",
+                        order_by=("organization_slug",),
+                    ),
+                ),
+            )
+
     def test_build_export_query_uses_stable_ordering(self):
         export = app.ModelExport(
             model="jobs",

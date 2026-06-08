@@ -80,7 +80,7 @@ Build production models, then publish the Parquet files:
 
 ```bash
 mdbt build --target prd
-mpublish
+mpub
 ```
 
 Publishing overwrites these fixed R2 objects:
@@ -89,6 +89,9 @@ Publishing overwrites these fixed R2 objects:
 jobs.parquet
 organizations.parquet
 ```
+
+Configure the exported relations and stable sort columns in
+`parquet_exports.json`.
 
 Both objects are uploaded with `Cache-Control: no-cache`. Because they are
 updated separately, clients may briefly see files from different publishes.

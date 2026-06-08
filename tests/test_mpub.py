@@ -6,10 +6,10 @@ from pathlib import Path
 ROOT = Path(__file__).parent.parent
 
 
-def load_mpublish_module():
+def load_mpub_module():
     loader = importlib.machinery.SourceFileLoader(
-        "mpublish_script",
-        str(ROOT / "bin/mpublish"),
+        "mpub_script",
+        str(ROOT / "bin/mpub"),
     )
     spec = importlib.util.spec_from_loader(loader.name, loader)
     module = importlib.util.module_from_spec(spec)
@@ -17,12 +17,12 @@ def load_mpublish_module():
     return module
 
 
-class MpublishCommandTest(unittest.TestCase):
+class MpubCommandTest(unittest.TestCase):
     def test_builds_modal_publish_command(self):
-        mpublish = load_mpublish_module()
+        mpub = load_mpub_module()
 
         self.assertEqual(
-            mpublish.build_modal_command(),
+            mpub.build_modal_command(),
             ["uv", "run", "modal", "run", "app.py", "--publish"],
         )
 

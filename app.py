@@ -10,6 +10,8 @@ import modal
 
 PROJECT_ID = "analytics-engineering-jobs"
 PRODUCTION_DATASET = "dbt_prd"
+PROJECT_ROOT = Path(__file__).resolve().parent
+EXPORT_CONFIG_PATH = PROJECT_ROOT / "parquet_exports.json"
 PARQUET_CONTENT_TYPE = "application/vnd.apache.parquet"
 PARQUET_CACHE_CONTROL = "no-cache"
 
@@ -21,18 +23,17 @@ class ModelExport:
     order_by: tuple[str, ...]
 
 
-MODEL_EXPORTS = (
-    ModelExport(
-        model="jobs",
-        relation="stg_jobs",
-        order_by=("organization_slug", "job_slug"),
-    ),
-    ModelExport(
-        model="organizations",
-        relation="stg_organizations",
-        order_by=("organization_slug",),
-    ),
-)
+def load_model_exports(path: Path = EXPORT_CONFIG_PATH) -> tuple[ModelExport, ...]:
+    with path.open() as file:
+        config = json.load(file)
+    return tuple(
+        ModelExport(
+            model=export["model"],
+            relation=export["relation"],
+            order_by=tuple(export["order_by"]),
+        )
+        for export in config
+    )
 
 
 def build_export_query(export: ModelExport) -> str:
@@ -49,7 +50,7 @@ def export_parquet_files(
     import pyarrow.parquet as parquet
 
     paths = []
-    for export in MODEL_EXPORTS:
+    for export in load_model_exports():
         table = (
             client.query(build_export_query(export))
             .result()
