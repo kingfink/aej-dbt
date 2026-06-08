@@ -12,9 +12,19 @@ cp .envrc.example .envrc
 direnv allow
 ```
 
-Create the Modal secret `aej-dbt-bq` with `SERVICE_ACCOUNT_JSON` containing the service-account JSON.
+Create the Modal secret `aej-dbt-bq` with:
 
-Grant the service account BigQuery User (`roles/bigquery.user`) and BigQuery Data Editor (`roles/bigquery.dataEditor`) on the `analytics-engineering-jobs` project. See the [dbt BigQuery setup docs](https://docs.getdbt.com/docs/local/connect-data-platform/bigquery-setup#required-permissions).
+```text
+GCP_PROJECT_ID
+SERVICE_ACCOUNT_JSON
+```
+
+`SERVICE_ACCOUNT_JSON` should contain the service-account JSON.
+
+Grant the service account BigQuery User (`roles/bigquery.user`) and BigQuery Data
+Editor (`roles/bigquery.dataEditor`) on the project configured by
+`GCP_PROJECT_ID`. See the
+[dbt BigQuery setup docs](https://docs.getdbt.com/docs/local/connect-data-platform/bigquery-setup#required-permissions).
 
 Create the Modal secret `aej-dbt-healthchecks` with the Healthchecks.io ping URL:
 

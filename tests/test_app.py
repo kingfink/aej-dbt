@@ -62,6 +62,7 @@ class DbtCommandTest(unittest.TestCase):
 class DbtRunTest(unittest.TestCase):
     def test_local_modal_function_uses_environment_defaults(self):
         env = {
+            "GCP_PROJECT_ID": "configured-project",
             "SERVICE_ACCOUNT_JSON": '{"type":"service_account"}',
             "AEJ_DBT_USER": "tf",
         }
@@ -80,6 +81,7 @@ class DbtRunTest(unittest.TestCase):
 
     def test_explicit_arguments_override_environment_defaults(self):
         env = {
+            "GCP_PROJECT_ID": "configured-project",
             "SERVICE_ACCOUNT_JSON": '{"type":"service_account"}',
             "AEJ_DBT_TARGET": "dev",
             "AEJ_DBT_USER": "tf",
@@ -99,6 +101,7 @@ class DbtRunTest(unittest.TestCase):
 
     def test_dbt_target_flag_overrides_environment_default(self):
         env = {
+            "GCP_PROJECT_ID": "configured-project",
             "SERVICE_ACCOUNT_JSON": '{"type":"service_account"}',
             "AEJ_DBT_TARGET": "dev",
             "AEJ_DBT_USER": "tf",
@@ -199,10 +202,11 @@ class ParquetPublishingAdapterTest(unittest.TestCase):
             relation="stg_jobs",
         )
 
-        self.assertEqual(
-            app.build_export_query(export),
-            "select * from `analytics-engineering-jobs.dbt_prd.stg_jobs`",
-        )
+        with patch.dict("os.environ", {"GCP_PROJECT_ID": "configured-project"}):
+            self.assertEqual(
+                app.build_export_query(export),
+                "select * from `configured-project.dbt_prd.stg_jobs`",
+            )
 
     def test_upload_parquet_files_uses_fixed_keys_and_no_cache(self):
         client = FakeS3Client()
@@ -244,6 +248,7 @@ class ParquetPublishingAdapterTest(unittest.TestCase):
 class HourlyDbtBuildTest(unittest.TestCase):
     def test_reports_start_and_success(self):
         env = {
+            "GCP_PROJECT_ID": "configured-project",
             "SERVICE_ACCOUNT_JSON": '{"type":"service_account"}',
             "HEALTHCHECKS_PING_URL": "https://hc-ping.com/check-id",
         }
@@ -295,6 +300,7 @@ class HourlyDbtBuildTest(unittest.TestCase):
 
     def test_reports_failure_and_reraises(self):
         env = {
+            "GCP_PROJECT_ID": "configured-project",
             "SERVICE_ACCOUNT_JSON": '{"type":"service_account"}',
             "HEALTHCHECKS_PING_URL": "https://hc-ping.com/check-id",
         }

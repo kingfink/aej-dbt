@@ -8,8 +8,6 @@ from pathlib import Path
 
 import modal
 
-PROJECT_ID = "analytics-engineering-jobs"
-
 
 @dataclass(frozen=True)
 class ModelExport:
@@ -33,7 +31,7 @@ def load_model_exports(
 
 
 def build_export_query(export: ModelExport) -> str:
-    return f"select * from `{PROJECT_ID}.dbt_prd.{export.relation}`"
+    return f"select * from `{os.environ['GCP_PROJECT_ID']}.dbt_prd.{export.relation}`"
 
 
 def export_parquet_files(
@@ -77,7 +75,10 @@ def create_bigquery_client():
     credentials = service_account.Credentials.from_service_account_info(
         service_account_info
     )
-    return bigquery.Client(project=PROJECT_ID, credentials=credentials)
+    return bigquery.Client(
+        project=os.environ["GCP_PROJECT_ID"],
+        credentials=credentials,
+    )
 
 
 def create_r2_client():
@@ -204,7 +205,7 @@ image = (
 
 bigquery_secret = modal.Secret.from_name(
     "aej-dbt-bq",
-    required_keys=["SERVICE_ACCOUNT_JSON"],
+    required_keys=["GCP_PROJECT_ID", "SERVICE_ACCOUNT_JSON"],
 )
 r2_secret = modal.Secret.from_name(
     "aej-dbt-r2",
