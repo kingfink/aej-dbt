@@ -158,6 +158,23 @@ uv run modal deploy app.py
 
 `modal run app.py` remains useful for manual runs, but it creates an ephemeral app and does not activate schedules.
 
+### Continuous deployment
+
+GitHub Actions runs Ruff and the unit tests for pull requests. After a push to
+`master`, it deploys the Modal app only after both checks pass.
+
+Create a Modal token for GitHub Actions, then add its values as repository
+secrets under **Settings → Secrets and variables → Actions**:
+
+```text
+MODAL_TOKEN_ID
+MODAL_TOKEN_SECRET
+```
+
+The workflow uses these credentials only for the `Deploy Modal` job. The
+application's BigQuery, Cloud Storage, and Healthchecks values remain in Modal
+Secrets and are not copied into GitHub.
+
 ## Checks
 
 ```bash
