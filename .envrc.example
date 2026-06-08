@@ -1,0 +1,8 @@
+PATH_add bin
+
+export AEJ_DBT_TARGET=dev
+export AEJ_DBT_USER=your_initials
+
+dotenv_if_exists .env
+
+export DBT_USER="${DBT_USER:-$AEJ_DBT_USER}"

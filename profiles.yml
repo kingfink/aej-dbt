@@ -1,0 +1,33 @@
+aej:
+  target: dev
+  outputs:
+    prd:
+      type: bigquery
+      method: service-account-json
+      keyfile_json: "{{ env_var('SERVICE_ACCOUNT_JSON') | as_native }}"
+      project: analytics-engineering-jobs
+      dataset: dbt_prd
+      location: US
+      threads: 4
+      timeout_seconds: 300
+      priority: interactive
+    ci:
+      type: bigquery
+      method: service-account-json
+      keyfile_json: "{{ env_var('SERVICE_ACCOUNT_JSON') | as_native }}"
+      project: analytics-engineering-jobs
+      dataset: "dbt_ci_{{ env_var('PR_NUMBER') }}"
+      location: US
+      threads: 4
+      timeout_seconds: 300
+      priority: interactive
+    dev:
+      type: bigquery
+      method: service-account-json
+      keyfile_json: "{{ env_var('SERVICE_ACCOUNT_JSON') | as_native }}"
+      project: analytics-engineering-jobs
+      dataset: "dbt_dev_{{ env_var('DBT_USER') }}"
+      location: US
+      threads: 4
+      timeout_seconds: 300
+      priority: interactive

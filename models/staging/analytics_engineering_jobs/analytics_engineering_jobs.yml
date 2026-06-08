@@ -1,0 +1,15 @@
+version: 2
+
+sources: 
+  - name: analytics_engineering_jobs
+    schema: dlt_content
+    loader: dlt
+    # loaded_at_field: null
+
+    # freshness:
+    #   warn_after: { count: 24, period: hour }
+    #   error_after: { count: 48, period: hour }
+
+    tables:
+      - name: jobs
+      - name: organizations

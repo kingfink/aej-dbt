@@ -1,0 +1,36 @@
+# Local env and secrets
+.env
+.env.*
+!.env.example
+.envrc
+.gcp/
+*.pem
+*.key
+service-account*.json
+gcp-sa-key*.json
+
+# dbt artifacts
+.user.yml
+target/
+dbt_packages/
+logs/
+dbt.log
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Editors / OS
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+dbt_internal_packages/
