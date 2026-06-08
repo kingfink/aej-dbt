@@ -168,14 +168,12 @@ class ParquetPublishingAdapterTest(unittest.TestCase):
                 json.dumps(
                     [
                         {
-                            "model": "jobs",
+                            "name": "jobs",
                             "relation": "stg_jobs",
-                            "order_by": ["organization_slug", "job_slug"],
                         },
                         {
-                            "model": "organizations",
+                            "name": "organizations",
                             "relation": "stg_organizations",
-                            "order_by": ["organization_slug"],
                         },
                     ]
                 )
@@ -185,32 +183,25 @@ class ParquetPublishingAdapterTest(unittest.TestCase):
                 app.load_model_exports(config_path),
                 (
                     app.ModelExport(
-                        model="jobs",
+                        name="jobs",
                         relation="stg_jobs",
-                        order_by=("organization_slug", "job_slug"),
                     ),
                     app.ModelExport(
-                        model="organizations",
+                        name="organizations",
                         relation="stg_organizations",
-                        order_by=("organization_slug",),
                     ),
                 ),
             )
 
-    def test_build_export_query_uses_stable_ordering(self):
+    def test_build_export_query_selects_relation(self):
         export = app.ModelExport(
-            model="jobs",
+            name="jobs",
             relation="stg_jobs",
-            order_by=("organization_slug", "job_slug"),
         )
 
         self.assertEqual(
             app.build_export_query(export),
-            (
-                "select * from "
-                "`analytics-engineering-jobs.dbt_prd.stg_jobs` "
-                "order by `organization_slug`, `job_slug`"
-            ),
+            "select * from `analytics-engineering-jobs.dbt_prd.stg_jobs`",
         )
 
     def test_upload_parquet_files_uses_fixed_keys_and_no_cache(self):

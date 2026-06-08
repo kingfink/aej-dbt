@@ -1,12 +1,10 @@
 [
   {
-    "model": "jobs",
-    "relation": "stg_jobs",
-    "order_by": ["organization_slug", "job_slug"]
+    "name": "jobs",
+    "relation": "stg_jobs"
   },
   {
-    "model": "organizations",
-    "relation": "stg_organizations",
-    "order_by": ["organization_slug"]
+    "name": "organizations",
+    "relation": "stg_organizations"
   }
 ]

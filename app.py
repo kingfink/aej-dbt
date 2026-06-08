@@ -9,37 +9,31 @@ from pathlib import Path
 import modal
 
 PROJECT_ID = "analytics-engineering-jobs"
-PRODUCTION_DATASET = "dbt_prd"
-PROJECT_ROOT = Path(__file__).resolve().parent
-EXPORT_CONFIG_PATH = PROJECT_ROOT / "parquet_exports.json"
-PARQUET_CONTENT_TYPE = "application/vnd.apache.parquet"
-PARQUET_CACHE_CONTROL = "no-cache"
 
 
 @dataclass(frozen=True)
 class ModelExport:
-    model: str
+    name: str
     relation: str
-    order_by: tuple[str, ...]
 
 
-def load_model_exports(path: Path = EXPORT_CONFIG_PATH) -> tuple[ModelExport, ...]:
+def load_model_exports(
+    path: Path | None = None,
+) -> tuple[ModelExport, ...]:
+    path = path or Path(__file__).with_name("parquet_exports.json")
     with path.open() as file:
         config = json.load(file)
     return tuple(
         ModelExport(
-            model=export["model"],
+            name=export["name"],
             relation=export["relation"],
-            order_by=tuple(export["order_by"]),
         )
         for export in config
     )
 
 
 def build_export_query(export: ModelExport) -> str:
-    relation = f"`{PROJECT_ID}.{PRODUCTION_DATASET}.{export.relation}`"
-    order_by = ", ".join(f"`{column}`" for column in export.order_by)
-    return f"select * from {relation} order by {order_by}"
+    return f"select * from `{PROJECT_ID}.dbt_prd.{export.relation}`"
 
 
 def export_parquet_files(
@@ -56,7 +50,7 @@ def export_parquet_files(
             .result()
             .to_arrow(create_bqstorage_client=False)
         )
-        path = directory / f"{export.model}.parquet"
+        path = directory / f"{export.name}.parquet"
         parquet.write_table(table, path, compression="zstd")
         paths.append(path)
     return paths
@@ -69,8 +63,8 @@ def upload_parquet_files(*, client, bucket: str, paths: list[Path]) -> None:
             bucket,
             path.name,
             ExtraArgs={
-                "ContentType": PARQUET_CONTENT_TYPE,
-                "CacheControl": PARQUET_CACHE_CONTROL,
+                "ContentType": "application/vnd.apache.parquet",
+                "CacheControl": "no-cache",
             },
         )
 

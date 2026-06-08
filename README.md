@@ -90,8 +90,7 @@ jobs.parquet
 organizations.parquet
 ```
 
-Configure the exported relations and stable sort columns in
-`parquet_exports.json`.
+Configure the output names and exported relations in `parquet_exports.json`.
 
 Both objects are uploaded with `Cache-Control: no-cache`. Because they are
 updated separately, clients may briefly see files from different publishes.
