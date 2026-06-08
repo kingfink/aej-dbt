@@ -1,22 +1,25 @@
 name: Deploy
 
 "on":
-  workflow_run:
-    workflows:
-      - Tests
-    types:
-      - completed
+  push:
     branches:
       - master
 
 permissions:
-  actions: read
   contents: read
 
 jobs:
+  lint:
+    uses: ./.github/workflows/lint.yml
+
+  tests:
+    uses: ./.github/workflows/tests.yml
+
   deploy:
     name: Deploy Modal
-    if: github.event.workflow_run.conclusion == 'success'
+    needs:
+      - lint
+      - tests
     runs-on: ubuntu-latest
     concurrency:
       group: modal-production
@@ -25,39 +28,7 @@ jobs:
       MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
       MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
     steps:
-      - name: Wait for lint
-        env:
-          GH_TOKEN: ${{ github.token }}
-          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
-        run: |
-          for attempt in {1..60}; do
-            result="$(gh run list \
-              --repo="$GITHUB_REPOSITORY" \
-              --workflow=lint.yml \
-              --commit="$HEAD_SHA" \
-              --limit=1 \
-              --json=status,conclusion \
-              --jq='.[0] | "\(.status) \(.conclusion)"')"
-
-            case "$result" in
-              "completed success")
-                exit 0
-                ;;
-              "completed "*)
-                echo "Lint did not pass: $result"
-                exit 1
-                ;;
-            esac
-
-            sleep 5
-          done
-
-          echo "Timed out waiting for lint"
-          exit 1
-
       - uses: actions/checkout@v5
-        with:
-          ref: ${{ github.event.workflow_run.head_sha }}
       - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
         with:
           enable-cache: true
