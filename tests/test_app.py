@@ -1,7 +1,21 @@
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 import app
+import publisher
+
+
+class FakeS3Client:
+    def __init__(self):
+        self.uploads = []
+        self.puts = []
+
+    def upload_file(self, filename, bucket, key, *, ExtraArgs):
+        self.uploads.append((filename, bucket, key, ExtraArgs))
+
+    def put_object(self, **kwargs):
+        self.puts.append(kwargs)
 
 
 class DbtCommandTest(unittest.TestCase):
@@ -114,6 +128,112 @@ class DbtRunTest(unittest.TestCase):
                 self.assertRaisesRegex(ValueError, message),
             ):
                 app.dbt_env(target)
+
+
+class AppDispatchTest(unittest.TestCase):
+    def test_publish_mode_dispatches_to_parquet_publisher(self):
+        with (
+            patch("app.run_dbt.remote") as run_dbt,
+            patch("app.publish_parquet.remote") as publish_parquet,
+        ):
+            app.dispatch(publish=True)
+
+        publish_parquet.assert_called_once_with()
+        run_dbt.assert_not_called()
+
+    def test_default_mode_dispatches_to_dbt_runner(self):
+        with (
+            patch("app.run_dbt.remote") as run_dbt,
+            patch("app.publish_parquet.remote") as publish_parquet,
+        ):
+            app.dispatch(
+                cmd="build --select stg_jobs",
+                target="prd",
+                dbt_user="tf",
+                pr_number="123",
+            )
+
+        run_dbt.assert_called_once_with(
+            cmd="build --select stg_jobs",
+            target="prd",
+            dbt_user="tf",
+            pr_number="123",
+        )
+        publish_parquet.assert_not_called()
+
+
+class ParquetPublishingAdapterTest(unittest.TestCase):
+    def test_build_export_query_uses_stable_ordering(self):
+        export = app.ModelExport(
+            model="jobs",
+            relation="stg_jobs",
+            order_by=("organization_slug", "job_slug"),
+        )
+
+        self.assertEqual(
+            app.build_export_query(export),
+            (
+                "select * from "
+                "`analytics-engineering-jobs.dbt_prd.stg_jobs` "
+                "order by `organization_slug`, `job_slug`"
+            ),
+        )
+
+    def test_r2_store_maps_object_metadata_to_s3_arguments(self):
+        client = FakeS3Client()
+        store = app.R2Store(client=client, bucket="aej-data")
+        metadata = publisher.ObjectMetadata(
+            content_type="application/vnd.apache.parquet",
+            cache_control="public, max-age=31536000, immutable",
+        )
+
+        store.upload_file(
+            Path("/tmp/jobs.parquet"),
+            "releases/example/jobs.parquet",
+            metadata=metadata,
+        )
+
+        self.assertEqual(
+            client.uploads,
+            [
+                (
+                    "/tmp/jobs.parquet",
+                    "aej-data",
+                    "releases/example/jobs.parquet",
+                    {
+                        "ContentType": "application/vnd.apache.parquet",
+                        "CacheControl": "public, max-age=31536000, immutable",
+                    },
+                )
+            ],
+        )
+
+    def test_r2_store_serializes_json_deterministically(self):
+        client = FakeS3Client()
+        store = app.R2Store(client=client, bucket="aej-data")
+        metadata = publisher.ObjectMetadata(
+            content_type="application/json",
+            cache_control="no-cache",
+        )
+
+        store.put_json(
+            "latest.json",
+            {"release_id": "release", "schema_version": 1},
+            metadata=metadata,
+        )
+
+        self.assertEqual(
+            client.puts,
+            [
+                {
+                    "Bucket": "aej-data",
+                    "Key": "latest.json",
+                    "Body": b'{"release_id":"release","schema_version":1}\n',
+                    "ContentType": "application/json",
+                    "CacheControl": "no-cache",
+                }
+            ],
+        )
 
 
 if __name__ == "__main__":
