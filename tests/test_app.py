@@ -250,60 +250,43 @@ class ParquetPublishingAdapterTest(unittest.TestCase):
         )
 
 
-class HourlyDbtBuildTest(unittest.TestCase):
-    def test_reports_start_and_success(self):
+class ScheduledProductionSyncTest(unittest.TestCase):
+    def test_runs_dbt_then_publish_and_reports_success(self):
         env = {
             "GCP_PROJECT_ID": "configured-project",
             "SERVICE_ACCOUNT_JSON": '{"type":"service_account"}',
             "HEALTHCHECKS_PING_URL": "https://hc-ping.com/check-id",
         }
+        events = []
 
         with (
             patch.dict("os.environ", env, clear=True),
-            patch("app.subprocess.run") as run,
+            patch(
+                "app.ping_healthcheck",
+                side_effect=lambda url, signal="": events.append(("ping", signal)),
+            ),
+            patch(
+                "app.execute_dbt",
+                side_effect=lambda **kwargs: events.append(("dbt", kwargs)),
+            ),
+            patch(
+                "app.execute_parquet_publish",
+                side_effect=lambda: events.append(("publish",)),
+            ),
         ):
-            app.hourly_dbt_build.local()
+            app.scheduled_production_sync.local()
 
         self.assertEqual(
-            run.call_args_list,
+            events,
             [
-                call(
-                    [
-                        "curl",
-                        "--fail",
-                        "--silent",
-                        "--show-error",
-                        "--max-time",
-                        "5",
-                        "--retry",
-                        "3",
-                        "https://hc-ping.com/check-id/start",
-                    ],
-                    check=False,
-                ),
-                call(
-                    ["dbt", "build", "--profiles-dir", ".", "--target", "prd"],
-                    check=True,
-                    env=env,
-                ),
-                call(
-                    [
-                        "curl",
-                        "--fail",
-                        "--silent",
-                        "--show-error",
-                        "--max-time",
-                        "5",
-                        "--retry",
-                        "3",
-                        "https://hc-ping.com/check-id",
-                    ],
-                    check=False,
-                ),
+                ("ping", "start"),
+                ("dbt", {"target": "prd"}),
+                ("publish",),
+                ("ping", ""),
             ],
         )
 
-    def test_reports_failure_and_reraises(self):
+    def test_dbt_failure_reports_failure_without_publishing(self):
         env = {
             "GCP_PROJECT_ID": "configured-project",
             "SERVICE_ACCOUNT_JSON": '{"type":"service_account"}',
@@ -313,50 +296,45 @@ class HourlyDbtBuildTest(unittest.TestCase):
 
         with (
             patch.dict("os.environ", env, clear=True),
-            patch(
-                "app.subprocess.run",
-                side_effect=[None, dbt_error, None],
-            ) as run,
+            patch("app.ping_healthcheck") as ping_healthcheck,
+            patch("app.execute_dbt", side_effect=dbt_error),
+            patch("app.execute_parquet_publish") as publish,
             self.assertRaises(subprocess.CalledProcessError),
         ):
-            app.hourly_dbt_build.local()
+            app.scheduled_production_sync.local()
 
+        publish.assert_not_called()
         self.assertEqual(
-            run.call_args_list,
+            ping_healthcheck.call_args_list,
             [
-                call(
-                    [
-                        "curl",
-                        "--fail",
-                        "--silent",
-                        "--show-error",
-                        "--max-time",
-                        "5",
-                        "--retry",
-                        "3",
-                        "https://hc-ping.com/check-id/start",
-                    ],
-                    check=False,
-                ),
-                call(
-                    ["dbt", "build", "--profiles-dir", ".", "--target", "prd"],
-                    check=True,
-                    env=env,
-                ),
-                call(
-                    [
-                        "curl",
-                        "--fail",
-                        "--silent",
-                        "--show-error",
-                        "--max-time",
-                        "5",
-                        "--retry",
-                        "3",
-                        "https://hc-ping.com/check-id/fail",
-                    ],
-                    check=False,
-                ),
+                call("https://hc-ping.com/check-id", "start"),
+                call("https://hc-ping.com/check-id", "fail"),
+            ],
+        )
+
+    def test_publish_failure_reports_failure(self):
+        env = {
+            "GCP_PROJECT_ID": "configured-project",
+            "SERVICE_ACCOUNT_JSON": '{"type":"service_account"}',
+            "HEALTHCHECKS_PING_URL": "https://hc-ping.com/check-id",
+        }
+        publish_error = RuntimeError("R2 upload failed")
+
+        with (
+            patch.dict("os.environ", env, clear=True),
+            patch("app.ping_healthcheck") as ping_healthcheck,
+            patch("app.execute_dbt") as execute_dbt,
+            patch("app.execute_parquet_publish", side_effect=publish_error),
+            self.assertRaisesRegex(RuntimeError, "R2 upload failed"),
+        ):
+            app.scheduled_production_sync.local()
+
+        execute_dbt.assert_called_once_with(target="prd")
+        self.assertEqual(
+            ping_healthcheck.call_args_list,
+            [
+                call("https://hc-ping.com/check-id", "start"),
+                call("https://hc-ping.com/check-id", "fail"),
             ],
         )
 

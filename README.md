@@ -111,25 +111,28 @@ Targets write to:
 - `ci`: `dbt_ci_<PR number>`
 - `prd`: `dbt_prd`
 
-## Scheduled production build
+## Scheduled production sync
 
-The deployed Modal app runs `dbt build --target prd` hourly with:
+The deployed Modal app runs `dbt build --target prd` and then publishes the
+Parquet files four times daily, at 00:00, 06:00, 12:00, and 18:00 UTC:
 
 ```python
-modal.Cron("0 * * * *")
+modal.Cron("0 */6 * * *")
 ```
 
-Configure a Healthchecks.io check named `aej-dbt hourly build` with:
+Configure a Healthchecks.io check named `aej-dbt production sync` with:
 
 - Schedule type: Cron
-- Cron expression: `0 * * * *`
+- Cron expression: `0 */6 * * *`
 - Time zone: UTC
 - Grace time: 60 minutes
 - Notification integration: email, Slack, or your preferred Healthchecks.io alert destination
 
-The scheduled function sends `/start` when it begins, a success ping after dbt exits successfully, and `/fail` if dbt raises an error. Healthchecks pings are best-effort: monitoring outages do not block the dbt build.
+The scheduled function sends `/start` when it begins, a success ping after both
+dbt and Parquet publishing finish, and `/fail` if either step raises an error.
+Healthchecks pings are best-effort: monitoring outages do not block the sync.
 
-Deploy the app to activate or update the hourly schedule:
+Deploy the app to activate or update the schedule:
 
 ```bash
 uv run modal deploy app.py

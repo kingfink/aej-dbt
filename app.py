@@ -99,6 +99,19 @@ def create_r2_client():
     )
 
 
+def execute_parquet_publish() -> None:
+    with tempfile.TemporaryDirectory() as temporary_directory:
+        paths = export_parquet_files(
+            client=create_bigquery_client(),
+            directory=Path(temporary_directory),
+        )
+        upload_parquet_files(
+            client=create_r2_client(),
+            bucket=os.environ["R2_BUCKET_NAME"],
+            paths=paths,
+        )
+
+
 def build_dbt_command(cmd: str, *, target: str = "dev") -> list[str]:
     args = shlex.split(cmd)
     command = [
@@ -245,29 +258,21 @@ def run_dbt(
 
 @app.function(image=image, secrets=[bigquery_secret, r2_secret], timeout=60 * 60)
 def publish_parquet() -> None:
-    with tempfile.TemporaryDirectory() as temporary_directory:
-        paths = export_parquet_files(
-            client=create_bigquery_client(),
-            directory=Path(temporary_directory),
-        )
-        upload_parquet_files(
-            client=create_r2_client(),
-            bucket=os.environ["R2_BUCKET_NAME"],
-            paths=paths,
-        )
+    execute_parquet_publish()
 
 
 @app.function(
     image=image,
-    secrets=[bigquery_secret, healthchecks_secret],
+    secrets=[bigquery_secret, r2_secret, healthchecks_secret],
     timeout=60 * 60,
-    schedule=modal.Cron("0 * * * *"),
+    schedule=modal.Cron("0 */6 * * *"),
 )
-def hourly_dbt_build() -> None:
+def scheduled_production_sync() -> None:
     ping_url = os.environ["HEALTHCHECKS_PING_URL"]
     ping_healthcheck(ping_url, "start")
     try:
         execute_dbt(target="prd")
+        execute_parquet_publish()
     except Exception:
         ping_healthcheck(ping_url, "fail")
         raise
