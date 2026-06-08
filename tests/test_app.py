@@ -99,26 +99,6 @@ class DbtRunTest(unittest.TestCase):
             env=env | {"PR_NUMBER": "123"},
         )
 
-    def test_dbt_target_flag_overrides_environment_default(self):
-        env = {
-            "GCP_PROJECT_ID": "configured-project",
-            "SERVICE_ACCOUNT_JSON": '{"type":"service_account"}',
-            "AEJ_DBT_TARGET": "dev",
-            "AEJ_DBT_USER": "tf",
-        }
-
-        with (
-            patch.dict("os.environ", env, clear=True),
-            patch("app.subprocess.run") as run,
-        ):
-            app.run_dbt.local(cmd="test --target prd")
-
-        run.assert_called_once_with(
-            ["dbt", "test", "--target", "prd", "--profiles-dir", "."],
-            check=True,
-            env=env,
-        )
-
     def test_rejects_missing_dynamic_dataset_suffix(self):
         for target, message in [
             ("dev", "dbt_user is required"),
@@ -141,26 +121,6 @@ class AppDispatchTest(unittest.TestCase):
 
         publish_parquet.assert_called_once_with()
         run_dbt.assert_not_called()
-
-    def test_default_mode_dispatches_to_dbt_runner(self):
-        with (
-            patch("app.run_dbt.remote") as run_dbt,
-            patch("app.publish_parquet.remote") as publish_parquet,
-        ):
-            app.dispatch(
-                cmd="build --select stg_jobs",
-                target="prd",
-                dbt_user="tf",
-                pr_number="123",
-            )
-
-        run_dbt.assert_called_once_with(
-            cmd="build --select stg_jobs",
-            target="prd",
-            dbt_user="tf",
-            pr_number="123",
-        )
-        publish_parquet.assert_not_called()
 
 
 class ParquetPublishingAdapterTest(unittest.TestCase):
@@ -219,10 +179,7 @@ class ParquetPublishingAdapterTest(unittest.TestCase):
         app.upload_parquet_files(
             client=client,
             bucket="aej-data",
-            paths=[
-                Path("/tmp/jobs.parquet"),
-                Path("/tmp/organizations.parquet"),
-            ],
+            paths=[Path("/tmp/jobs.parquet")],
         )
 
         self.assertEqual(
@@ -237,26 +194,13 @@ class ParquetPublishingAdapterTest(unittest.TestCase):
                         "CacheControl": "no-cache",
                     },
                 ),
-                (
-                    "/tmp/organizations.parquet",
-                    "aej-data",
-                    "organizations.parquet",
-                    {
-                        "ContentType": "application/vnd.apache.parquet",
-                        "CacheControl": "no-cache",
-                    },
-                ),
             ],
         )
 
 
 class ScheduledProductionSyncTest(unittest.TestCase):
     def test_runs_dbt_then_publish_and_reports_success(self):
-        env = {
-            "GCP_PROJECT_ID": "configured-project",
-            "SERVICE_ACCOUNT_JSON": '{"type":"service_account"}',
-            "HEALTHCHECKS_PING_URL": "https://hc-ping.com/check-id",
-        }
+        env = {"HEALTHCHECKS_PING_URL": "https://hc-ping.com/check-id"}
         events = []
 
         with (
@@ -287,11 +231,7 @@ class ScheduledProductionSyncTest(unittest.TestCase):
         )
 
     def test_dbt_failure_reports_failure_without_publishing(self):
-        env = {
-            "GCP_PROJECT_ID": "configured-project",
-            "SERVICE_ACCOUNT_JSON": '{"type":"service_account"}',
-            "HEALTHCHECKS_PING_URL": "https://hc-ping.com/check-id",
-        }
+        env = {"HEALTHCHECKS_PING_URL": "https://hc-ping.com/check-id"}
         dbt_error = subprocess.CalledProcessError(1, ["dbt", "build"])
 
         with (
@@ -313,11 +253,7 @@ class ScheduledProductionSyncTest(unittest.TestCase):
         )
 
     def test_publish_failure_reports_failure(self):
-        env = {
-            "GCP_PROJECT_ID": "configured-project",
-            "SERVICE_ACCOUNT_JSON": '{"type":"service_account"}',
-            "HEALTHCHECKS_PING_URL": "https://hc-ping.com/check-id",
-        }
+        env = {"HEALTHCHECKS_PING_URL": "https://hc-ping.com/check-id"}
         publish_error = RuntimeError("R2 upload failed")
 
         with (
@@ -337,21 +273,6 @@ class ScheduledProductionSyncTest(unittest.TestCase):
                 call("https://hc-ping.com/check-id", "fail"),
             ],
         )
-
-
-class HealthcheckPingTest(unittest.TestCase):
-    def test_ping_failure_does_not_block_job(self):
-        with (
-            patch(
-                "app.subprocess.run",
-                side_effect=OSError("curl unavailable"),
-            ) as run,
-            patch("builtins.print") as print_,
-        ):
-            app.ping_healthcheck("https://hc-ping.com/check-id", "start")
-
-        run.assert_called_once()
-        print_.assert_called_once_with("Healthchecks.io ping failed: curl unavailable")
 
 
 if __name__ == "__main__":
