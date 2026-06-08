@@ -1,5 +1,6 @@
+import subprocess
 import unittest
-from unittest.mock import patch
+from unittest.mock import call, patch
 
 import app
 
@@ -114,6 +115,130 @@ class DbtRunTest(unittest.TestCase):
                 self.assertRaisesRegex(ValueError, message),
             ):
                 app.dbt_env(target)
+
+
+class HourlyDbtBuildTest(unittest.TestCase):
+    def test_reports_start_and_success(self):
+        env = {
+            "SERVICE_ACCOUNT_JSON": '{"type":"service_account"}',
+            "HEALTHCHECKS_PING_URL": "https://hc-ping.com/check-id",
+        }
+
+        with (
+            patch.dict("os.environ", env, clear=True),
+            patch("app.subprocess.run") as run,
+        ):
+            app.hourly_dbt_build.local()
+
+        self.assertEqual(
+            run.call_args_list,
+            [
+                call(
+                    [
+                        "curl",
+                        "--fail",
+                        "--silent",
+                        "--show-error",
+                        "--max-time",
+                        "5",
+                        "--retry",
+                        "3",
+                        "https://hc-ping.com/check-id/start",
+                    ],
+                    check=False,
+                ),
+                call(
+                    ["dbt", "build", "--profiles-dir", ".", "--target", "prd"],
+                    check=True,
+                    env=env,
+                ),
+                call(
+                    [
+                        "curl",
+                        "--fail",
+                        "--silent",
+                        "--show-error",
+                        "--max-time",
+                        "5",
+                        "--retry",
+                        "3",
+                        "https://hc-ping.com/check-id",
+                    ],
+                    check=False,
+                ),
+            ],
+        )
+
+    def test_reports_failure_and_reraises(self):
+        env = {
+            "SERVICE_ACCOUNT_JSON": '{"type":"service_account"}',
+            "HEALTHCHECKS_PING_URL": "https://hc-ping.com/check-id",
+        }
+        dbt_error = subprocess.CalledProcessError(1, ["dbt", "build"])
+
+        with (
+            patch.dict("os.environ", env, clear=True),
+            patch(
+                "app.subprocess.run",
+                side_effect=[None, dbt_error, None],
+            ) as run,
+            self.assertRaises(subprocess.CalledProcessError),
+        ):
+            app.hourly_dbt_build.local()
+
+        self.assertEqual(
+            run.call_args_list,
+            [
+                call(
+                    [
+                        "curl",
+                        "--fail",
+                        "--silent",
+                        "--show-error",
+                        "--max-time",
+                        "5",
+                        "--retry",
+                        "3",
+                        "https://hc-ping.com/check-id/start",
+                    ],
+                    check=False,
+                ),
+                call(
+                    ["dbt", "build", "--profiles-dir", ".", "--target", "prd"],
+                    check=True,
+                    env=env,
+                ),
+                call(
+                    [
+                        "curl",
+                        "--fail",
+                        "--silent",
+                        "--show-error",
+                        "--max-time",
+                        "5",
+                        "--retry",
+                        "3",
+                        "https://hc-ping.com/check-id/fail",
+                    ],
+                    check=False,
+                ),
+            ],
+        )
+
+
+class HealthcheckPingTest(unittest.TestCase):
+    def test_ping_failure_does_not_block_job(self):
+        with (
+            patch(
+                "app.subprocess.run",
+                side_effect=OSError("curl unavailable"),
+            ) as run,
+            patch("builtins.print") as print_,
+        ):
+            app.ping_healthcheck("https://hc-ping.com/check-id", "start")
+
+        run.assert_called_once()
+        print_.assert_called_once_with("Healthchecks.io ping failed: curl unavailable")
 
 
 if __name__ == "__main__":
