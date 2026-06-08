@@ -32,6 +32,7 @@ jobs:
         run: |
           for attempt in {1..60}; do
             result="$(gh run list \
+              --repo="$GITHUB_REPOSITORY" \
               --workflow=lint.yml \
               --commit="$HEAD_SHA" \
               --limit=1 \
