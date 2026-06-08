@@ -17,6 +17,7 @@ Create the Modal secret `aej-dbt-bq` with:
 ```text
 GCP_PROJECT_ID
 SERVICE_ACCOUNT_JSON
+GCS_BUCKET_NAME
 ```
 
 `SERVICE_ACCOUNT_JSON` should contain the service-account JSON.
@@ -33,48 +34,65 @@ uv run modal secret create aej-dbt-healthchecks \
   HEALTHCHECKS_PING_URL=https://hc-ping.com/<check-uuid>
 ```
 
-### R2 publishing
+### Parquet publishing
 
-Create a Cloudflare R2 bucket and an R2 access key scoped to object read/write
-access on that bucket. Create the Modal secret `aej-dbt-r2` with:
+Create a public Cloud Storage bucket with uniform bucket-level access. Bucket
+names are globally unique:
 
-```text
-R2_ACCOUNT_ID
-R2_ACCESS_KEY_ID
-R2_SECRET_ACCESS_KEY
-R2_BUCKET_NAME
+```bash
+gcloud storage buckets create gs://<bucket-name> \
+  --project=analytics-engineering-jobs \
+  --location=US \
+  --uniform-bucket-level-access \
+  --no-public-access-prevention
 ```
 
-For production browser access, connect an
-[R2 custom domain](https://developers.cloudflare.com/r2/data-access/public-buckets/#connect-a-bucket-to-a-custom-domain)
-instead of using the rate-limited `r2.dev` URL.
+Grant the dbt service account permission to replace objects, and allow public
+reads:
 
-Configure the bucket's
-[CORS policy](https://developers.cloudflare.com/r2/buckets/cors/) for the
-Netlify site and local development:
+```bash
+gcloud storage buckets add-iam-policy-binding gs://<bucket-name> \
+  --member=serviceAccount:<service-account-email> \
+  --role=roles/storage.objectAdmin
+
+gcloud storage buckets add-iam-policy-binding gs://<bucket-name> \
+  --member=allUsers \
+  --role=roles/storage.objectViewer
+```
+
+Save this browser CORS policy outside the repository:
 
 ```json
 [
   {
-    "AllowedOrigins": [
-      "https://your-netlify-domain.example",
-      "http://localhost:3000"
-    ],
-    "AllowedMethods": ["GET", "HEAD"],
-    "AllowedHeaders": ["Range"],
-    "ExposeHeaders": [
+    "origin": ["*"],
+    "method": ["GET", "HEAD"],
+    "responseHeader": [
       "Accept-Ranges",
       "Content-Length",
       "Content-Range",
-      "ETag"
+      "Content-Type",
+      "ETag",
+      "Range"
     ],
-    "MaxAgeSeconds": 3600
+    "maxAgeSeconds": 3600
   }
 ]
 ```
 
-If the bucket was already serving through a custom domain, purge that hostname's
-cache after changing CORS so cached objects receive the new response headers.
+Apply it with:
+
+```bash
+gcloud storage buckets update gs://<bucket-name> \
+  --cors-file=<path-to-cors-json>
+```
+
+The files are then available at:
+
+```text
+https://storage.googleapis.com/<bucket-name>/jobs.parquet
+https://storage.googleapis.com/<bucket-name>/organizations.parquet
+```
 
 ## Run
 
@@ -93,7 +111,7 @@ mdbt build --target prd
 mpub
 ```
 
-Publishing overwrites these fixed R2 objects:
+Publishing overwrites these fixed Cloud Storage objects:
 
 ```text
 jobs.parquet

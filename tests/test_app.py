@@ -8,12 +8,29 @@ from unittest.mock import call, patch
 import app
 
 
-class FakeS3Client:
+class FakeGCSBlob:
     def __init__(self):
+        self.cache_control = None
         self.uploads = []
 
-    def upload_file(self, filename, bucket, key, *, ExtraArgs):
-        self.uploads.append((filename, bucket, key, ExtraArgs))
+    def upload_from_filename(self, filename, *, content_type):
+        self.uploads.append((filename, content_type))
+
+
+class FakeGCSBucket:
+    def __init__(self):
+        self.blobs = {}
+
+    def blob(self, name):
+        return self.blobs.setdefault(name, FakeGCSBlob())
+
+
+class FakeGCSClient:
+    def __init__(self):
+        self.buckets = {}
+
+    def bucket(self, name):
+        return self.buckets.setdefault(name, FakeGCSBucket())
 
 
 class DbtCommandTest(unittest.TestCase):
@@ -174,25 +191,22 @@ class ParquetPublishingAdapterTest(unittest.TestCase):
             )
 
     def test_upload_parquet_files_uses_fixed_keys_and_no_cache(self):
-        client = FakeS3Client()
+        client = FakeGCSClient()
 
         app.upload_parquet_files(
             client=client,
-            bucket="aej-data",
+            bucket_name="aej-data",
             paths=[Path("/tmp/jobs.parquet")],
         )
 
+        blob = client.buckets["aej-data"].blobs["jobs.parquet"]
+        self.assertEqual(blob.cache_control, "no-cache")
         self.assertEqual(
-            client.uploads,
+            blob.uploads,
             [
                 (
                     "/tmp/jobs.parquet",
-                    "aej-data",
-                    "jobs.parquet",
-                    {
-                        "ContentType": "application/vnd.apache.parquet",
-                        "CacheControl": "no-cache",
-                    },
+                    "application/vnd.apache.parquet",
                 ),
             ],
         )
@@ -254,14 +268,14 @@ class ScheduledProductionSyncTest(unittest.TestCase):
 
     def test_publish_failure_reports_failure(self):
         env = {"HEALTHCHECKS_PING_URL": "https://hc-ping.com/check-id"}
-        publish_error = RuntimeError("R2 upload failed")
+        publish_error = RuntimeError("GCS upload failed")
 
         with (
             patch.dict("os.environ", env, clear=True),
             patch("app.ping_healthcheck") as ping_healthcheck,
             patch("app.execute_dbt") as execute_dbt,
             patch("app.execute_parquet_publish", side_effect=publish_error),
-            self.assertRaisesRegex(RuntimeError, "R2 upload failed"),
+            self.assertRaisesRegex(RuntimeError, "GCS upload failed"),
         ):
             app.scheduled_production_sync.local()
 

@@ -59,43 +59,40 @@ def export_parquet_files(
     return paths
 
 
-def upload_parquet_files(*, client, bucket: str, paths: list[Path]) -> None:
+def upload_parquet_files(*, client, bucket_name: str, paths: list[Path]) -> None:
+    bucket = client.bucket(bucket_name)
     for path in paths:
-        client.upload_file(
+        blob = bucket.blob(path.name)
+        blob.cache_control = "no-cache"
+        blob.upload_from_filename(
             str(path),
-            bucket,
-            path.name,
-            ExtraArgs={
-                "ContentType": "application/vnd.apache.parquet",
-                "CacheControl": "no-cache",
-            },
+            content_type="application/vnd.apache.parquet",
         )
+
+
+def create_google_credentials():
+    from google.oauth2 import service_account
+
+    return service_account.Credentials.from_service_account_info(
+        json.loads(os.environ["SERVICE_ACCOUNT_JSON"])
+    )
 
 
 def create_bigquery_client():
     from google.cloud import bigquery
-    from google.oauth2 import service_account
 
-    service_account_info = json.loads(os.environ["SERVICE_ACCOUNT_JSON"])
-    credentials = service_account.Credentials.from_service_account_info(
-        service_account_info
-    )
     return bigquery.Client(
         project=os.environ["GCP_PROJECT_ID"],
-        credentials=credentials,
+        credentials=create_google_credentials(),
     )
 
 
-def create_r2_client():
-    import boto3
+def create_gcs_client():
+    from google.cloud import storage
 
-    account_id = os.environ["R2_ACCOUNT_ID"]
-    return boto3.client(
-        "s3",
-        endpoint_url=f"https://{account_id}.r2.cloudflarestorage.com",
-        aws_access_key_id=os.environ["R2_ACCESS_KEY_ID"],
-        aws_secret_access_key=os.environ["R2_SECRET_ACCESS_KEY"],
-        region_name="auto",
+    return storage.Client(
+        project=os.environ["GCP_PROJECT_ID"],
+        credentials=create_google_credentials(),
     )
 
 
@@ -106,8 +103,8 @@ def execute_parquet_publish() -> None:
             directory=Path(temporary_directory),
         )
         upload_parquet_files(
-            client=create_r2_client(),
-            bucket=os.environ["R2_BUCKET_NAME"],
+            client=create_gcs_client(),
+            bucket_name=os.environ["GCS_BUCKET_NAME"],
             paths=paths,
         )
 
@@ -195,8 +192,8 @@ image = (
     modal.Image.debian_slim(python_version="3.12")
     .apt_install("ca-certificates", "curl", "git", "jq")
     .pip_install(
-        "boto3>=1.40,<2",
         "google-cloud-bigquery>=3.38,<4",
+        "google-cloud-storage>=3,<4",
         "pyarrow>=20,<21",
     )
     .run_commands(
@@ -223,16 +220,7 @@ image = (
 
 bigquery_secret = modal.Secret.from_name(
     "aej-dbt-bq",
-    required_keys=["GCP_PROJECT_ID", "SERVICE_ACCOUNT_JSON"],
-)
-r2_secret = modal.Secret.from_name(
-    "aej-dbt-r2",
-    required_keys=[
-        "R2_ACCOUNT_ID",
-        "R2_ACCESS_KEY_ID",
-        "R2_SECRET_ACCESS_KEY",
-        "R2_BUCKET_NAME",
-    ],
+    required_keys=["GCP_PROJECT_ID", "SERVICE_ACCOUNT_JSON", "GCS_BUCKET_NAME"],
 )
 
 healthchecks_secret = modal.Secret.from_name(
@@ -256,14 +244,14 @@ def run_dbt(
     )
 
 
-@app.function(image=image, secrets=[bigquery_secret, r2_secret], timeout=60 * 60)
+@app.function(image=image, secrets=[bigquery_secret], timeout=60 * 60)
 def publish_parquet() -> None:
     execute_parquet_publish()
 
 
 @app.function(
     image=image,
-    secrets=[bigquery_secret, r2_secret, healthchecks_secret],
+    secrets=[bigquery_secret, healthchecks_secret],
     timeout=60 * 60,
     schedule=modal.Cron("0 */6 * * *"),
 )
