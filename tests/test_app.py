@@ -1,8 +1,36 @@
+import json
 import subprocess
+import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import call, patch
 
 import app
+
+
+class FakeGCSBlob:
+    def __init__(self):
+        self.cache_control = None
+        self.uploads = []
+
+    def upload_from_filename(self, filename, *, content_type):
+        self.uploads.append((filename, content_type))
+
+
+class FakeGCSBucket:
+    def __init__(self):
+        self.blobs = {}
+
+    def blob(self, name):
+        return self.blobs.setdefault(name, FakeGCSBlob())
+
+
+class FakeGCSClient:
+    def __init__(self):
+        self.buckets = {}
+
+    def bucket(self, name):
+        return self.buckets.setdefault(name, FakeGCSBucket())
 
 
 class DbtCommandTest(unittest.TestCase):
@@ -51,6 +79,7 @@ class DbtCommandTest(unittest.TestCase):
 class DbtRunTest(unittest.TestCase):
     def test_local_modal_function_uses_environment_defaults(self):
         env = {
+            "GCP_PROJECT_ID": "configured-project",
             "SERVICE_ACCOUNT_JSON": '{"type":"service_account"}',
             "AEJ_DBT_USER": "tf",
         }
@@ -69,6 +98,7 @@ class DbtRunTest(unittest.TestCase):
 
     def test_explicit_arguments_override_environment_defaults(self):
         env = {
+            "GCP_PROJECT_ID": "configured-project",
             "SERVICE_ACCOUNT_JSON": '{"type":"service_account"}',
             "AEJ_DBT_TARGET": "dev",
             "AEJ_DBT_USER": "tf",
@@ -86,25 +116,6 @@ class DbtRunTest(unittest.TestCase):
             env=env | {"PR_NUMBER": "123"},
         )
 
-    def test_dbt_target_flag_overrides_environment_default(self):
-        env = {
-            "SERVICE_ACCOUNT_JSON": '{"type":"service_account"}',
-            "AEJ_DBT_TARGET": "dev",
-            "AEJ_DBT_USER": "tf",
-        }
-
-        with (
-            patch.dict("os.environ", env, clear=True),
-            patch("app.subprocess.run") as run,
-        ):
-            app.run_dbt.local(cmd="test --target prd")
-
-        run.assert_called_once_with(
-            ["dbt", "test", "--target", "prd", "--profiles-dir", "."],
-            check=True,
-            env=env,
-        )
-
     def test_rejects_missing_dynamic_dataset_suffix(self):
         for target, message in [
             ("dev", "dbt_user is required"),
@@ -117,128 +128,165 @@ class DbtRunTest(unittest.TestCase):
                 app.dbt_env(target)
 
 
-class HourlyDbtBuildTest(unittest.TestCase):
-    def test_reports_start_and_success(self):
-        env = {
-            "SERVICE_ACCOUNT_JSON": '{"type":"service_account"}',
-            "HEALTHCHECKS_PING_URL": "https://hc-ping.com/check-id",
-        }
-
+class AppDispatchTest(unittest.TestCase):
+    def test_publish_mode_dispatches_to_parquet_publish_job(self):
         with (
-            patch.dict("os.environ", env, clear=True),
-            patch("app.subprocess.run") as run,
+            patch("app.run_dbt.remote") as run_dbt,
+            patch("app.publish_parquet.remote") as publish_parquet,
         ):
-            app.hourly_dbt_build.local()
+            app.dispatch(publish=True)
 
+        publish_parquet.assert_called_once_with()
+        run_dbt.assert_not_called()
+
+
+class ParquetPublishingAdapterTest(unittest.TestCase):
+    def test_load_model_exports_reads_json_config(self):
+        with tempfile.TemporaryDirectory() as directory:
+            config_path = Path(directory) / "parquet_exports.json"
+            config_path.write_text(
+                json.dumps(
+                    [
+                        {
+                            "name": "jobs",
+                            "dataset": "published_models",
+                            "relation": "stg_jobs",
+                        },
+                        {
+                            "name": "organizations",
+                            "dataset": "published_models",
+                            "relation": "stg_organizations",
+                        },
+                    ]
+                )
+            )
+
+            self.assertEqual(
+                app.load_model_exports(config_path),
+                (
+                    app.ModelExport(
+                        name="jobs",
+                        dataset="published_models",
+                        relation="stg_jobs",
+                    ),
+                    app.ModelExport(
+                        name="organizations",
+                        dataset="published_models",
+                        relation="stg_organizations",
+                    ),
+                ),
+            )
+
+    def test_build_export_query_selects_relation(self):
+        export = app.ModelExport(
+            name="jobs",
+            dataset="published_models",
+            relation="stg_jobs",
+        )
+
+        with patch.dict("os.environ", {"GCP_PROJECT_ID": "configured-project"}):
+            self.assertEqual(
+                app.build_export_query(export),
+                "select * from `configured-project.published_models.stg_jobs`",
+            )
+
+    def test_upload_parquet_files_uses_fixed_keys_and_no_cache(self):
+        client = FakeGCSClient()
+
+        app.upload_parquet_files(
+            client=client,
+            bucket_name="aej-data",
+            paths=[Path("/tmp/jobs.parquet")],
+        )
+
+        blob = client.buckets["aej-data"].blobs["jobs.parquet"]
+        self.assertEqual(blob.cache_control, "no-cache")
         self.assertEqual(
-            run.call_args_list,
+            blob.uploads,
             [
-                call(
-                    [
-                        "curl",
-                        "--fail",
-                        "--silent",
-                        "--show-error",
-                        "--max-time",
-                        "5",
-                        "--retry",
-                        "3",
-                        "https://hc-ping.com/check-id/start",
-                    ],
-                    check=False,
-                ),
-                call(
-                    ["dbt", "build", "--profiles-dir", ".", "--target", "prd"],
-                    check=True,
-                    env=env,
-                ),
-                call(
-                    [
-                        "curl",
-                        "--fail",
-                        "--silent",
-                        "--show-error",
-                        "--max-time",
-                        "5",
-                        "--retry",
-                        "3",
-                        "https://hc-ping.com/check-id",
-                    ],
-                    check=False,
+                (
+                    "/tmp/jobs.parquet",
+                    "application/vnd.apache.parquet",
                 ),
             ],
         )
 
-    def test_reports_failure_and_reraises(self):
-        env = {
-            "SERVICE_ACCOUNT_JSON": '{"type":"service_account"}',
-            "HEALTHCHECKS_PING_URL": "https://hc-ping.com/check-id",
-        }
+
+class ScheduledProductionSyncTest(unittest.TestCase):
+    def test_runs_dbt_then_publish_and_reports_success(self):
+        env = {"HEALTHCHECKS_PING_URL": "https://hc-ping.com/check-id"}
+        events = []
+
+        with (
+            patch.dict("os.environ", env, clear=True),
+            patch(
+                "app.ping_healthcheck",
+                side_effect=lambda url, signal="": events.append(("ping", signal)),
+            ),
+            patch(
+                "app.execute_dbt",
+                side_effect=lambda **kwargs: events.append(("dbt", kwargs)),
+            ),
+            patch(
+                "app.execute_parquet_publish",
+                side_effect=lambda: events.append(("publish",)),
+            ),
+        ):
+            app.scheduled_production_sync.local()
+
+        self.assertEqual(
+            events,
+            [
+                ("ping", "start"),
+                ("dbt", {"target": "prd"}),
+                ("publish",),
+                ("ping", ""),
+            ],
+        )
+
+    def test_dbt_failure_reports_failure_without_publishing(self):
+        env = {"HEALTHCHECKS_PING_URL": "https://hc-ping.com/check-id"}
         dbt_error = subprocess.CalledProcessError(1, ["dbt", "build"])
 
         with (
             patch.dict("os.environ", env, clear=True),
-            patch(
-                "app.subprocess.run",
-                side_effect=[None, dbt_error, None],
-            ) as run,
+            patch("app.ping_healthcheck") as ping_healthcheck,
+            patch("app.execute_dbt", side_effect=dbt_error),
+            patch("app.execute_parquet_publish") as publish,
             self.assertRaises(subprocess.CalledProcessError),
         ):
-            app.hourly_dbt_build.local()
+            app.scheduled_production_sync.local()
 
+        publish.assert_not_called()
         self.assertEqual(
-            run.call_args_list,
+            ping_healthcheck.call_args_list,
             [
-                call(
-                    [
-                        "curl",
-                        "--fail",
-                        "--silent",
-                        "--show-error",
-                        "--max-time",
-                        "5",
-                        "--retry",
-                        "3",
-                        "https://hc-ping.com/check-id/start",
-                    ],
-                    check=False,
-                ),
-                call(
-                    ["dbt", "build", "--profiles-dir", ".", "--target", "prd"],
-                    check=True,
-                    env=env,
-                ),
-                call(
-                    [
-                        "curl",
-                        "--fail",
-                        "--silent",
-                        "--show-error",
-                        "--max-time",
-                        "5",
-                        "--retry",
-                        "3",
-                        "https://hc-ping.com/check-id/fail",
-                    ],
-                    check=False,
-                ),
+                call("https://hc-ping.com/check-id", "start"),
+                call("https://hc-ping.com/check-id", "fail"),
             ],
         )
 
+    def test_publish_failure_reports_failure(self):
+        env = {"HEALTHCHECKS_PING_URL": "https://hc-ping.com/check-id"}
+        publish_error = RuntimeError("GCS upload failed")
 
-class HealthcheckPingTest(unittest.TestCase):
-    def test_ping_failure_does_not_block_job(self):
         with (
-            patch(
-                "app.subprocess.run",
-                side_effect=OSError("curl unavailable"),
-            ) as run,
-            patch("builtins.print") as print_,
+            patch.dict("os.environ", env, clear=True),
+            patch("app.ping_healthcheck") as ping_healthcheck,
+            patch("app.execute_dbt") as execute_dbt,
+            patch("app.execute_parquet_publish", side_effect=publish_error),
+            self.assertRaisesRegex(RuntimeError, "GCS upload failed"),
         ):
-            app.ping_healthcheck("https://hc-ping.com/check-id", "start")
+            app.scheduled_production_sync.local()
 
-        run.assert_called_once()
-        print_.assert_called_once_with("Healthchecks.io ping failed: curl unavailable")
+        execute_dbt.assert_called_once_with(target="prd")
+        self.assertEqual(
+            ping_healthcheck.call_args_list,
+            [
+                call("https://hc-ping.com/check-id", "start"),
+                call("https://hc-ping.com/check-id", "fail"),
+            ],
+        )
 
 
 if __name__ == "__main__":

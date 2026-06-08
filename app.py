@@ -1,8 +1,112 @@
+import json
 import os
 import shlex
 import subprocess
+import tempfile
+from dataclasses import dataclass
+from pathlib import Path
 
 import modal
+
+
+@dataclass(frozen=True)
+class ModelExport:
+    name: str
+    dataset: str
+    relation: str
+
+
+def load_model_exports(
+    path: Path | None = None,
+) -> tuple[ModelExport, ...]:
+    path = path or Path(__file__).with_name("parquet_exports.json")
+    with path.open() as file:
+        config = json.load(file)
+    return tuple(
+        ModelExport(
+            name=export["name"],
+            dataset=export["dataset"],
+            relation=export["relation"],
+        )
+        for export in config
+    )
+
+
+def build_export_query(export: ModelExport) -> str:
+    return (
+        f"select * from "
+        f"`{os.environ['GCP_PROJECT_ID']}.{export.dataset}.{export.relation}`"
+    )
+
+
+def export_parquet_files(
+    *,
+    client,
+    directory: Path,
+) -> list[Path]:
+    import pyarrow.parquet as parquet
+
+    paths = []
+    for export in load_model_exports():
+        table = (
+            client.query(build_export_query(export))
+            .result()
+            .to_arrow(create_bqstorage_client=False)
+        )
+        path = directory / f"{export.name}.parquet"
+        parquet.write_table(table, path, compression="zstd")
+        paths.append(path)
+    return paths
+
+
+def upload_parquet_files(*, client, bucket_name: str, paths: list[Path]) -> None:
+    bucket = client.bucket(bucket_name)
+    for path in paths:
+        blob = bucket.blob(path.name)
+        blob.cache_control = "no-cache"
+        blob.upload_from_filename(
+            str(path),
+            content_type="application/vnd.apache.parquet",
+        )
+
+
+def create_google_credentials():
+    from google.oauth2 import service_account
+
+    return service_account.Credentials.from_service_account_info(
+        json.loads(os.environ["SERVICE_ACCOUNT_JSON"])
+    )
+
+
+def create_bigquery_client():
+    from google.cloud import bigquery
+
+    return bigquery.Client(
+        project=os.environ["GCP_PROJECT_ID"],
+        credentials=create_google_credentials(),
+    )
+
+
+def create_gcs_client():
+    from google.cloud import storage
+
+    return storage.Client(
+        project=os.environ["GCP_PROJECT_ID"],
+        credentials=create_google_credentials(),
+    )
+
+
+def execute_parquet_publish() -> None:
+    with tempfile.TemporaryDirectory() as temporary_directory:
+        paths = export_parquet_files(
+            client=create_bigquery_client(),
+            directory=Path(temporary_directory),
+        )
+        upload_parquet_files(
+            client=create_gcs_client(),
+            bucket_name=os.environ["GCS_BUCKET_NAME"],
+            paths=paths,
+        )
 
 
 def build_dbt_command(cmd: str, *, target: str = "dev") -> list[str]:
@@ -87,6 +191,11 @@ app = modal.App("aej-dbt")
 image = (
     modal.Image.debian_slim(python_version="3.12")
     .apt_install("ca-certificates", "curl", "git", "jq")
+    .pip_install(
+        "google-cloud-bigquery>=3.38,<4",
+        "google-cloud-storage>=3,<4",
+        "pyarrow>=20,<21",
+    )
     .run_commands(
         "export SHELL=/bin/bash && "
         "curl -fsSL https://public.cdn.getdbt.com/fs/install/install.sh"
@@ -111,7 +220,7 @@ image = (
 
 bigquery_secret = modal.Secret.from_name(
     "aej-dbt-bq",
-    required_keys=["SERVICE_ACCOUNT_JSON"],
+    required_keys=["GCP_PROJECT_ID", "SERVICE_ACCOUNT_JSON", "GCS_BUCKET_NAME"],
 )
 
 healthchecks_secret = modal.Secret.from_name(
@@ -135,21 +244,47 @@ def run_dbt(
     )
 
 
+@app.function(image=image, secrets=[bigquery_secret], timeout=60 * 60)
+def publish_parquet() -> None:
+    execute_parquet_publish()
+
+
 @app.function(
     image=image,
     secrets=[bigquery_secret, healthchecks_secret],
     timeout=60 * 60,
-    schedule=modal.Cron("0 * * * *"),
+    schedule=modal.Cron("0 */6 * * *"),
 )
-def hourly_dbt_build() -> None:
+def scheduled_production_sync() -> None:
     ping_url = os.environ["HEALTHCHECKS_PING_URL"]
     ping_healthcheck(ping_url, "start")
     try:
         execute_dbt(target="prd")
+        execute_parquet_publish()
     except Exception:
         ping_healthcheck(ping_url, "fail")
         raise
     ping_healthcheck(ping_url)
+
+
+def dispatch(
+    *,
+    cmd: str = "build",
+    target: str = "",
+    dbt_user: str = "",
+    pr_number: str = "",
+    publish: bool = False,
+) -> None:
+    if publish:
+        publish_parquet.remote()
+        return
+
+    run_dbt.remote(
+        cmd=cmd,
+        target=target,
+        dbt_user=dbt_user,
+        pr_number=pr_number,
+    )
 
 
 @app.local_entrypoint()
@@ -158,10 +293,12 @@ def main(
     target: str = "",
     dbt_user: str = "",
     pr_number: str = "",
+    publish: bool = False,
 ) -> None:
-    run_dbt.remote(
+    dispatch(
         cmd=cmd,
         target=target,
         dbt_user=dbt_user,
         pr_number=pr_number,
+        publish=publish,
     )

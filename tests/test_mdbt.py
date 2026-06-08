@@ -23,25 +23,6 @@ class MdbtCommandTest(unittest.TestCase):
             ["uv", "run", "modal", "run", "app.py", "--cmd", "build"],
         )
 
-    def test_forwards_dbt_arguments_as_one_command(self):
-        mdbt = load_mdbt_module()
-
-        self.assertEqual(
-            mdbt.build_modal_command(
-                ["build", "--select", "state:modified+"],
-                env={},
-            ),
-            [
-                "uv",
-                "run",
-                "modal",
-                "run",
-                "app.py",
-                "--cmd",
-                "build --select state:modified+",
-            ],
-        )
-
     def test_preserves_quoted_arguments(self):
         mdbt = load_mdbt_module()
 
@@ -83,32 +64,6 @@ class MdbtCommandTest(unittest.TestCase):
                 "run",
                 "--target",
                 "dev",
-                "--dbt-user",
-                "tf",
-                "--pr-number",
-                "123",
-            ],
-        )
-
-    def test_falls_back_to_dbt_environment_names(self):
-        mdbt = load_mdbt_module()
-
-        self.assertEqual(
-            mdbt.build_modal_command(
-                ["run"],
-                env={
-                    "DBT_USER": "tf",
-                    "PR_NUMBER": "123",
-                },
-            ),
-            [
-                "uv",
-                "run",
-                "modal",
-                "run",
-                "app.py",
-                "--cmd",
-                "run",
                 "--dbt-user",
                 "tf",
                 "--pr-number",

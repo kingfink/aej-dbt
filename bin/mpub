@@ -1,0 +1,18 @@
+#!/usr/bin/env python3
+
+import subprocess
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+
+
+def build_modal_command() -> list[str]:
+    return ["uv", "run", "modal", "run", "app.py", "--publish"]
+
+
+def main() -> int:
+    return subprocess.run(build_modal_command(), cwd=ROOT).returncode
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

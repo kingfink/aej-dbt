@@ -1,0 +1,12 @@
+[
+  {
+    "name": "jobs",
+    "dataset": "dbt_prd",
+    "relation": "stg_jobs"
+  },
+  {
+    "name": "organizations",
+    "dataset": "dbt_prd",
+    "relation": "stg_organizations"
+  }
+]
