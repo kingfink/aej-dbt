@@ -12,6 +12,7 @@ import modal
 @dataclass(frozen=True)
 class ModelExport:
     name: str
+    dataset: str
     relation: str
 
 
@@ -24,6 +25,7 @@ def load_model_exports(
     return tuple(
         ModelExport(
             name=export["name"],
+            dataset=export["dataset"],
             relation=export["relation"],
         )
         for export in config
@@ -31,7 +33,10 @@ def load_model_exports(
 
 
 def build_export_query(export: ModelExport) -> str:
-    return f"select * from `{os.environ['GCP_PROJECT_ID']}.dbt_prd.{export.relation}`"
+    return (
+        f"select * from "
+        f"`{os.environ['GCP_PROJECT_ID']}.{export.dataset}.{export.relation}`"
+    )
 
 
 def export_parquet_files(

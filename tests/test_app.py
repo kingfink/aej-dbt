@@ -172,10 +172,12 @@ class ParquetPublishingAdapterTest(unittest.TestCase):
                     [
                         {
                             "name": "jobs",
+                            "dataset": "published_models",
                             "relation": "stg_jobs",
                         },
                         {
                             "name": "organizations",
+                            "dataset": "published_models",
                             "relation": "stg_organizations",
                         },
                     ]
@@ -187,10 +189,12 @@ class ParquetPublishingAdapterTest(unittest.TestCase):
                 (
                     app.ModelExport(
                         name="jobs",
+                        dataset="published_models",
                         relation="stg_jobs",
                     ),
                     app.ModelExport(
                         name="organizations",
+                        dataset="published_models",
                         relation="stg_organizations",
                     ),
                 ),
@@ -199,13 +203,14 @@ class ParquetPublishingAdapterTest(unittest.TestCase):
     def test_build_export_query_selects_relation(self):
         export = app.ModelExport(
             name="jobs",
+            dataset="published_models",
             relation="stg_jobs",
         )
 
         with patch.dict("os.environ", {"GCP_PROJECT_ID": "configured-project"}):
             self.assertEqual(
                 app.build_export_query(export),
-                "select * from `configured-project.dbt_prd.stg_jobs`",
+                "select * from `configured-project.published_models.stg_jobs`",
             )
 
     def test_upload_parquet_files_uses_fixed_keys_and_no_cache(self):

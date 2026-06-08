@@ -100,7 +100,7 @@ jobs.parquet
 organizations.parquet
 ```
 
-Configure the output names and exported relations in `parquet_exports.json`.
+Configure the output names, datasets, and relations in `parquet_exports.json`.
 
 Both objects are uploaded with `Cache-Control: no-cache`. Because they are
 updated separately, clients may briefly see files from different publishes.
