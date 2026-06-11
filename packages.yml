@@ -1,0 +1,6 @@
+packages:
+  # - package: Velir/ga4
+  #   version: [">=6.2.0", "<6.3.0"]
+
+  # fixes typo (desctiption) in source repository while waiting for the PR (https://github.com/Velir/dbt-ga4/pull/398) to be merged
+  - git: "https://github.com/kingfink/dbt-ga4.git"

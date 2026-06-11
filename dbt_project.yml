@@ -19,3 +19,14 @@ models:
   aej:
     staging:
       +materialized: view
+
+vars:
+  ga4:
+    source_project: "analytics-engineering-jobs"
+    combined_dataset: "ga4_combined"
+    property_ids: [
+      333655999,
+      466027950
+    ]
+    start_date: "20220101"
+    static_incremental_days: 7
