@@ -19,6 +19,13 @@ models:
   aej:
     staging:
       +materialized: view
+  ga4:
+    staging:
+      base:
+        base_ga4__events:
+          +full_refresh: false # to avoid recombining the source properties, data shouldn't change anyways, can be toggled off as necessary
+        base_ga4__users:
+          +full_refresh: false # see above under base_ga4__events
 
 vars:
   ga4:

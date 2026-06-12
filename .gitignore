@@ -37,3 +37,6 @@ dbt_internal_packages/
 
 # Local worktrees
 .worktrees/
+
+# Brainstorming design docs / specs (kept local, not version-controlled)
+docs/superpowers/

@@ -4,6 +4,7 @@ import shlex
 import subprocess
 import tempfile
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 
 import modal
@@ -246,6 +247,21 @@ healthchecks_secret = modal.Secret.from_name(
     required_keys=["HEALTHCHECKS_PING_URL"],
 )
 
+# Persists the date of the last weekly full refresh so the schedule can run one
+# without depending on the cron's exact shape. Created on first use.
+state = modal.Dict.from_name("aej-dbt-state", create_if_missing=True)
+
+
+def should_full_refresh(now: datetime, last_full_refresh: str) -> bool:
+    """Whether this run should be the weekly full refresh.
+
+    True on the first production run of each Sunday (UTC). Driven by the
+    persisted ``last_full_refresh`` marker rather than the clock, so it stays
+    correct if the cron cadence ever changes: every Sunday run sees a stale
+    marker only until the day's first run claims the date.
+    """
+    return now.weekday() == 6 and last_full_refresh != now.date().isoformat()
+
 
 @app.function(image=image, secrets=[bigquery_secret], timeout=60 * 60)
 def run_dbt(
@@ -275,11 +291,24 @@ def publish_parquet() -> None:
 )
 def scheduled_production_sync() -> None:
     ping_url = os.environ["HEALTHCHECKS_PING_URL"]
+    now = datetime.now(UTC)
+    previous = state.get("last_full_refresh", "")
+    full_refresh = should_full_refresh(now, previous)
+    if full_refresh:
+        # Claim the day up front so a concurrent or later Sunday run sees the
+        # date as taken and stays incremental, never starting a second refresh.
+        state["last_full_refresh"] = now.date().isoformat()
     ping_healthcheck(ping_url, "start")
     try:
-        execute_dbt(target="prd")
+        execute_dbt(
+            cmd="build --full-refresh" if full_refresh else "build",
+            target="prd",
+        )
         execute_parquet_publish()
     except Exception:
+        if full_refresh:
+            # Release the claim so the next Sunday run retries the refresh.
+            state["last_full_refresh"] = previous
         ping_healthcheck(ping_url, "fail")
         raise
     ping_healthcheck(ping_url)
