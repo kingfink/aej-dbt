@@ -2,12 +2,62 @@
 
 import os
 import shlex
+import shutil
 import subprocess
 import sys
 from collections.abc import Mapping
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+
+# `dbt deps` renders profiles.yml but never connects, so dummy creds suffice.
+# Mirrors the env used for the same step in app.py's image build.
+DEPS_ENV = {
+    "SERVICE_ACCOUNT_JSON": "{}",
+    "GCP_PROJECT_ID": "x",
+    "DBT_USER": "x",
+    "PR_NUMBER": "0",
+}
+
+
+def lock_is_current(*, packages: Path, lock: Path) -> bool:
+    if not packages.exists():
+        return True
+    return lock.exists() and lock.stat().st_mtime >= packages.stat().st_mtime
+
+
+def refresh_lockfile(
+    *,
+    root: Path = ROOT,
+    env: Mapping[str, str] = os.environ,
+) -> None:
+    """Keep package-lock.yml in sync with packages.yml before dispatching.
+
+    The Modal image keys its cached `dbt deps` layer on package-lock.yml, so a
+    fresh local lock is what lets any `mdbt` command pick up dependency changes
+    without a separate `dbt deps` step. Skipped (no cost, no network) when the
+    lock is already newer than packages.yml. To bump an unpinned git dep to its
+    latest HEAD, delete package-lock.yml first so this re-resolves it.
+    """
+    packages = root / "packages.yml"
+    lock = root / "package-lock.yml"
+    if lock_is_current(packages=packages, lock=lock):
+        return
+    dbt = shutil.which("dbt")
+    if dbt is None:
+        print(
+            "mdbt: packages.yml changed but no local `dbt` on PATH; "
+            "run `dbt deps` to refresh package-lock.yml.",
+            file=sys.stderr,
+        )
+        return
+    print("mdbt: packages.yml changed — refreshing package-lock.yml")
+    subprocess.run(
+        [dbt, "deps", "--profiles-dir", "."],
+        cwd=root,
+        env={**env, **DEPS_ENV},
+        check=True,
+    )
 
 
 def build_modal_command(
@@ -40,6 +90,7 @@ def build_modal_command(
 
 
 def main() -> int:
+    refresh_lockfile()
     return subprocess.run(build_modal_command(sys.argv[1:]), cwd=ROOT).returncode
 
 

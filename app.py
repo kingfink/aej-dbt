@@ -202,6 +202,24 @@ image = (
         " | sh -s -- --version stable --to /usr/local/bin"
     )
     .workdir("/workspace/aej-dbt")
+    # Install dbt packages at build time so they are cached as an image layer.
+    # Only the dependency-defining files go in first, so this layer (and the
+    # `dbt deps` run below) is reused until one of them changes. Dummy env vars
+    # let profiles.yml render; `dbt deps` never connects to BigQuery.
+    .add_local_file("packages.yml", "/workspace/aej-dbt/packages.yml", copy=True)
+    # The lockfile pins the exact resolved version/commit of every package, so
+    # copying it in makes the cache key for the `dbt deps` layer below track the
+    # locked revision. Moving an unpinned git dep (e.g. a fork's HEAD) then busts
+    # this layer as soon as `dbt deps` is re-run locally and the lock changes.
+    .add_local_file(
+        "package-lock.yml", "/workspace/aej-dbt/package-lock.yml", copy=True
+    )
+    .add_local_file("dbt_project.yml", "/workspace/aej-dbt/dbt_project.yml", copy=True)
+    .add_local_file("profiles.yml", "/workspace/aej-dbt/profiles.yml", copy=True)
+    .run_commands(
+        "SERVICE_ACCOUNT_JSON={} GCP_PROJECT_ID=x DBT_USER=x PR_NUMBER=0 "
+        "dbt deps --profiles-dir ."
+    )
     .add_local_dir(
         ".",
         remote_path="/workspace/aej-dbt",
