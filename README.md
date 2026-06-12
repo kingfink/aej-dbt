@@ -146,6 +146,17 @@ Configure a Healthchecks.io check named `aej-dbt production sync` with:
 - Grace time: 60 minutes
 - Notification integration: email, Slack, or your preferred Healthchecks.io alert destination
 
+The first production run of each Sunday (UTC) is a full refresh
+(`dbt build --target prd --full-refresh`) instead of an incremental build; the
+rest of the week is incremental. The two GA4 base models
+(`base_ga4__events`, `base_ga4__users`) are pinned `+full_refresh: false` in
+`dbt_project.yml`, so the full refresh rebuilds every other incremental model
+but leaves those untouched. The chosen day is tracked in a `modal.Dict` named
+`aej-dbt-state` (created automatically), so it keeps working if the cron cadence
+changes: whatever the schedule, the day's first run claims the date and the
+later runs stay incremental. The claim is released if the refresh fails, so the
+next run retries.
+
 The scheduled function sends `/start` when it begins, a success ping after both
 dbt and Parquet publishing finish, and `/fail` if either step raises an error.
 Healthchecks pings are best-effort: monitoring outages do not block the sync.

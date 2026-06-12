@@ -2,6 +2,7 @@ import json
 import subprocess
 import tempfile
 import unittest
+from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import call, patch
 
@@ -212,13 +213,40 @@ class ParquetPublishingAdapterTest(unittest.TestCase):
         )
 
 
+class ShouldFullRefreshTest(unittest.TestCase):
+    def test_sunday_with_stale_marker_triggers_full_refresh(self):
+        sunday = datetime(2026, 6, 14, 0, 0, tzinfo=UTC)
+
+        self.assertTrue(app.should_full_refresh(sunday, "2026-06-07"))
+
+    def test_sunday_without_marker_triggers_full_refresh(self):
+        sunday = datetime(2026, 6, 14, 12, 0, tzinfo=UTC)
+
+        self.assertTrue(app.should_full_refresh(sunday, ""))
+
+    def test_sunday_already_claimed_stays_incremental(self):
+        sunday = datetime(2026, 6, 14, 18, 0, tzinfo=UTC)
+
+        self.assertFalse(app.should_full_refresh(sunday, "2026-06-14"))
+
+    def test_other_weekdays_stay_incremental(self):
+        for label, moment in [
+            ("saturday", datetime(2026, 6, 13, 0, 0, tzinfo=UTC)),
+            ("monday", datetime(2026, 6, 15, 0, 0, tzinfo=UTC)),
+        ]:
+            with self.subTest(weekday=label):
+                self.assertFalse(app.should_full_refresh(moment, "2026-06-07"))
+
+
 class ScheduledProductionSyncTest(unittest.TestCase):
-    def test_runs_dbt_then_publish_and_reports_success(self):
+    def test_runs_incremental_then_publish_and_reports_success(self):
         env = {"HEALTHCHECKS_PING_URL": "https://hc-ping.com/check-id"}
         events = []
 
         with (
             patch.dict("os.environ", env, clear=True),
+            patch("app.state", {}) as state,
+            patch("app.should_full_refresh", return_value=False),
             patch(
                 "app.ping_healthcheck",
                 side_effect=lambda url, signal="": events.append(("ping", signal)),
@@ -238,9 +266,59 @@ class ScheduledProductionSyncTest(unittest.TestCase):
             events,
             [
                 ("ping", "start"),
-                ("dbt", {"target": "prd"}),
+                ("dbt", {"cmd": "build", "target": "prd"}),
                 ("publish",),
                 ("ping", ""),
+            ],
+        )
+        self.assertEqual(state, {})
+
+    def test_full_refresh_run_claims_the_day_and_passes_flag(self):
+        env = {"HEALTHCHECKS_PING_URL": "https://hc-ping.com/check-id"}
+        state = {"last_full_refresh": "2026-06-07"}
+        sunday = datetime(2026, 6, 14, 0, 0, tzinfo=UTC)
+
+        with (
+            patch.dict("os.environ", env, clear=True),
+            patch("app.state", state),
+            patch("app.datetime") as clock,
+            patch("app.should_full_refresh", return_value=True),
+            patch("app.ping_healthcheck"),
+            patch("app.execute_dbt") as execute_dbt,
+            patch("app.execute_parquet_publish"),
+        ):
+            clock.now.return_value = sunday
+            app.scheduled_production_sync.local()
+
+        execute_dbt.assert_called_once_with(cmd="build --full-refresh", target="prd")
+        self.assertEqual(state, {"last_full_refresh": "2026-06-14"})
+
+    def test_full_refresh_failure_releases_the_claim(self):
+        env = {"HEALTHCHECKS_PING_URL": "https://hc-ping.com/check-id"}
+        state = {"last_full_refresh": "2026-06-07"}
+        sunday = datetime(2026, 6, 14, 0, 0, tzinfo=UTC)
+        dbt_error = subprocess.CalledProcessError(1, ["dbt", "build"])
+
+        with (
+            patch.dict("os.environ", env, clear=True),
+            patch("app.state", state),
+            patch("app.datetime") as clock,
+            patch("app.should_full_refresh", return_value=True),
+            patch("app.ping_healthcheck") as ping_healthcheck,
+            patch("app.execute_dbt", side_effect=dbt_error),
+            patch("app.execute_parquet_publish") as publish,
+            self.assertRaises(subprocess.CalledProcessError),
+        ):
+            clock.now.return_value = sunday
+            app.scheduled_production_sync.local()
+
+        publish.assert_not_called()
+        self.assertEqual(state, {"last_full_refresh": "2026-06-07"})
+        self.assertEqual(
+            ping_healthcheck.call_args_list,
+            [
+                call("https://hc-ping.com/check-id", "start"),
+                call("https://hc-ping.com/check-id", "fail"),
             ],
         )
 
@@ -250,6 +328,8 @@ class ScheduledProductionSyncTest(unittest.TestCase):
 
         with (
             patch.dict("os.environ", env, clear=True),
+            patch("app.state", {}),
+            patch("app.should_full_refresh", return_value=False),
             patch("app.ping_healthcheck") as ping_healthcheck,
             patch("app.execute_dbt", side_effect=dbt_error),
             patch("app.execute_parquet_publish") as publish,
@@ -272,6 +352,8 @@ class ScheduledProductionSyncTest(unittest.TestCase):
 
         with (
             patch.dict("os.environ", env, clear=True),
+            patch("app.state", {}),
+            patch("app.should_full_refresh", return_value=False),
             patch("app.ping_healthcheck") as ping_healthcheck,
             patch("app.execute_dbt") as execute_dbt,
             patch("app.execute_parquet_publish", side_effect=publish_error),
@@ -279,7 +361,7 @@ class ScheduledProductionSyncTest(unittest.TestCase):
         ):
             app.scheduled_production_sync.local()
 
-        execute_dbt.assert_called_once_with(target="prd")
+        execute_dbt.assert_called_once_with(cmd="build", target="prd")
         self.assertEqual(
             ping_healthcheck.call_args_list,
             [
