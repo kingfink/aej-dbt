@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+install_dir="${1:-$HOME/.local/bin}"
+
+curl -fsSL https://public.cdn.getdbt.com/dbt-wizard/install/install-wizard.sh \
+  | sh -s -- --to "$install_dir"

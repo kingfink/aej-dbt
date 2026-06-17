@@ -10,15 +10,6 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 
-# `dbt deps` renders profiles.yml but never connects, so dummy creds suffice.
-# Mirrors the env used for the same step in app.py's image build.
-DEPS_ENV = {
-    "SERVICE_ACCOUNT_JSON": "{}",
-    "GCP_PROJECT_ID": "x",
-    "DBT_USER": "x",
-    "PR_NUMBER": "0",
-}
-
 
 def lock_is_current(*, packages: Path, lock: Path) -> bool:
     if not packages.exists():
@@ -53,9 +44,9 @@ def refresh_lockfile(
         return
     print("mdbt: packages.yml changed — refreshing package-lock.yml")
     subprocess.run(
-        [dbt, "deps", "--profiles-dir", "."],
+        ["bash", str(root / "scripts/dbt-deps")],
         cwd=root,
-        env={**env, **DEPS_ENV},
+        env=env,
         check=True,
     )
 
