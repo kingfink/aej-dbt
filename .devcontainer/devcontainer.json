@@ -30,7 +30,8 @@
       "settings": {
         "git.autofetch": true,
         "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
-        "python.terminal.useEnvFile": true
+        "python.terminal.useEnvFile": true,
+        "workbench.secondarySideBar.defaultVisibility": "hidden"
       },
       "extensions": [
         "ms-python.python",
