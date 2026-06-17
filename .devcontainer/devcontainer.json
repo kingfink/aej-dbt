@@ -1,0 +1,41 @@
+{
+  "name": "aej-dbt",
+  "image": "mcr.microsoft.com/devcontainers/python:1-3.12-bookworm",
+  "updateContentCommand": "bash .devcontainer/update-content.sh",
+  "postCreateCommand": "bash .devcontainer/post-create.sh",
+  "secrets": {
+    "GCP_PROJECT_ID": {
+      "description": "BigQuery project ID for dbt development."
+    },
+    "SERVICE_ACCOUNT_JSON": {
+      "description": "Service-account JSON for BigQuery development."
+    },
+    "DBT_USER": {
+      "description": "Short identifier used for the dbt_dev_<user> dataset."
+    },
+    "OPENAI_API_KEY": {
+      "description": "Optional: OpenAI API key for dbt Wizard BYOK provider setup."
+    },
+    "ANTHROPIC_API_KEY": {
+      "description": "Optional: Anthropic API key for dbt Wizard BYOK provider setup."
+    }
+  },
+  "remoteEnv": {
+    "AEJ_DBT_TARGET": "dev",
+    "DO_NOT_TRACK": "1",
+    "PATH": "${containerEnv:HOME}/.local/bin:${containerEnv:PATH}"
+  },
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "git.autofetch": true,
+        "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
+        "python.terminal.useEnvFile": true
+      },
+      "extensions": [
+        "ms-python.python",
+        "charliermarsh.ruff"
+      ]
+    }
+  }
+}

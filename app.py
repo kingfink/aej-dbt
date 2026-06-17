@@ -197,11 +197,8 @@ image = (
         "google-cloud-storage>=3,<4",
         "pyarrow>=20,<21",
     )
-    .run_commands(
-        "export SHELL=/bin/bash && "
-        "curl -fsSL https://public.cdn.getdbt.com/fs/install/install.sh"
-        " | sh -s -- --version stable --to /usr/local/bin"
-    )
+    .add_local_file("scripts/install-dbt-fusion", "/tmp/install-dbt-fusion", copy=True)
+    .run_commands("bash /tmp/install-dbt-fusion /usr/local/bin")
     .workdir("/workspace/aej-dbt")
     # Install dbt packages at build time so they are cached as an image layer.
     # Only the dependency-defining files go in first, so this layer (and the
@@ -215,12 +212,12 @@ image = (
     .add_local_file(
         "package-lock.yml", "/workspace/aej-dbt/package-lock.yml", copy=True
     )
+    .add_local_file(
+        "scripts/dbt-deps", "/workspace/aej-dbt/scripts/dbt-deps", copy=True
+    )
     .add_local_file("dbt_project.yml", "/workspace/aej-dbt/dbt_project.yml", copy=True)
     .add_local_file("profiles.yml", "/workspace/aej-dbt/profiles.yml", copy=True)
-    .run_commands(
-        "SERVICE_ACCOUNT_JSON={} GCP_PROJECT_ID=x DBT_USER=x PR_NUMBER=0 "
-        "dbt deps --profiles-dir ."
-    )
+    .run_commands("bash scripts/dbt-deps")
     .add_local_dir(
         ".",
         remote_path="/workspace/aej-dbt",
