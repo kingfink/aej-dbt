@@ -22,20 +22,26 @@ SERVICE_ACCOUNT_JSON
 DBT_USER
 ```
 
-To skip dbt Wizard's provider key prompt, also add one of:
+For non-interactive dbt Wizard auth, also add one of:
 
 ```text
-ANTHROPIC_API_KEY
+DBT_WIZARD_API_KEY
 OPENAI_API_KEY
 ```
 
-Codespaces installs `uv`, dbt Fusion, dbt Wizard, Python tooling, and dbt packages automatically. It also runs `scripts/configure-dbt-wizard`, which writes the non-secret Wizard project config under `~/.dbt/wizard/`. Provider keys are stored only in the codespace home by Wizard, not in the repository.
+To configure an Anthropic BYOK provider, optionally add:
+
+```text
+ANTHROPIC_API_KEY
+```
+
+Codespaces installs `uv`, ripgrep, dbt Fusion, dbt Wizard, Python tooling, and dbt packages automatically. It also runs `scripts/configure-dbt-wizard`, which writes the non-secret Wizard project config under `~/.dbt/wizard/`. Provider keys are stored only in the codespace home by Wizard, not in the repository.
 
 ```bash
 wizard
 ```
 
-Wizard may still ask you to accept its Terms of Use. If Wizard reports missing provider auth or dbt credentials, confirm the relevant Codespaces secrets are scoped to this repository, then stop and restart the codespace.
+Wizard may still ask you to accept its Terms of Use. If Wizard reports missing auth, confirm `OPENAI_API_KEY` or `DBT_WIZARD_API_KEY` is scoped to this repository, then stop and restart the codespace. `ANTHROPIC_API_KEY` alone is not enough for Wizard auth.
 
 Create the Modal secret `aej-dbt-bq` with:
 

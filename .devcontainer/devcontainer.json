@@ -14,7 +14,10 @@
       "description": "Short identifier used for the dbt_dev_<user> dataset."
     },
     "OPENAI_API_KEY": {
-      "description": "Optional: OpenAI API key for dbt Wizard BYOK provider setup."
+      "description": "Optional: OpenAI API key for dbt Wizard auth and BYOK provider setup."
+    },
+    "DBT_WIZARD_API_KEY": {
+      "description": "Optional: dbt Wizard API key for non-interactive Wizard auth."
     },
     "ANTHROPIC_API_KEY": {
       "description": "Optional: Anthropic API key for dbt Wizard BYOK provider setup."

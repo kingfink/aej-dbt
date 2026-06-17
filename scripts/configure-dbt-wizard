@@ -99,7 +99,9 @@ if command -v wizard >/dev/null 2>&1; then
     ensure_top_level_key "$config_file" "model" "$openai_model"
     printf '%s' "$OPENAI_API_KEY" | wizard providers set-key openai >/dev/null
     wizard providers enable openai >/dev/null
-  elif [[ ! -f "$config_dir/provider-auth.json" ]]; then
-    printf '%s\n' "dbt Wizard provider setup skipped: set ANTHROPIC_API_KEY or OPENAI_API_KEY as a Codespaces secret, then stop and restart the codespace." >&2
+  fi
+
+  if [[ -z "${OPENAI_API_KEY:-}" && -z "${DBT_WIZARD_API_KEY:-}" && ! -f "$config_dir/auth.json" ]]; then
+    printf '%s\n' "dbt Wizard auth is not configured: set OPENAI_API_KEY or DBT_WIZARD_API_KEY as a Codespaces secret, or run dbt-wizard login. ANTHROPIC_API_KEY only configures the Anthropic BYOK provider." >&2
   fi
 fi
