@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+auth_file="$HOME/.dbt/wizard/auth.json"
+
+if [[ -z "${DBT_WIZARD_AUTH_JSON:-}" || -f "$auth_file" ]]; then
+  exit 0
+fi
+
+mkdir -p "$(dirname "$auth_file")"
+umask 077
+
+auth_tmp="$(mktemp "${auth_file}.XXXXXX")"
+trap 'rm -f "$auth_tmp"' EXIT
+
+printf '%s' "$DBT_WIZARD_AUTH_JSON" >"$auth_tmp"
+python3 -c 'import json, sys; json.load(open(sys.argv[1], encoding="utf-8"))' "$auth_tmp"
+mv "$auth_tmp" "$auth_file"
+trap - EXIT
+
+printf '%s\n' "Restored dbt Wizard credentials from the Codespaces secret."
