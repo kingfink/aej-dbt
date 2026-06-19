@@ -12,4 +12,5 @@ if ! command -v uv >/dev/null 2>&1 ||
   bash .devcontainer/update-content.sh
 fi
 
+bash scripts/restore-dbt-wizard-auth
 bash scripts/configure-dbt-wizard "$PWD"

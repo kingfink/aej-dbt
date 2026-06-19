@@ -29,13 +29,22 @@ ANTHROPIC_API_KEY
 OPENAI_API_KEY
 ```
 
-Codespaces installs `uv`, ripgrep, dbt Fusion, dbt Wizard, Python tooling, and dbt packages automatically. It also runs `scripts/configure-dbt-wizard`, which writes the non-secret Wizard project config under `~/.dbt/wizard/`. Provider keys are stored only in the codespace home by Wizard, not in the repository.
+After completing `wizard login` locally, store its credentials as a user-level Codespaces secret scoped to this repository:
+
+```bash
+gh secret set DBT_WIZARD_AUTH_JSON \
+  --user \
+  --repos aej-dbt \
+  < ~/.dbt/wizard/auth.json
+```
+
+Codespaces installs `uv`, ripgrep, dbt Fusion, dbt Wizard, Python tooling, and dbt packages automatically. It writes the Wizard credentials from that secret to `~/.dbt/wizard/auth.json` when the file is missing, and runs `scripts/configure-dbt-wizard` to write the non-secret project config under `~/.dbt/wizard/`. Wizard can refresh its local credentials without the setup overwriting them.
 
 ```bash
 wizard
 ```
 
-Wizard may still ask you to accept its Terms of Use. If Wizard reports missing provider auth or dbt credentials, confirm the relevant Codespaces secrets are scoped to this repository, then stop and restart the codespace.
+Wizard may still ask you to accept its Terms of Use. If Wizard reports missing provider auth or dbt credentials, confirm the relevant Codespaces secrets are scoped to this repository, then stop and restart the codespace. Update `DBT_WIZARD_AUTH_JSON` only if dbt invalidates the stored refresh token or a new codespace cannot refresh it.
 
 Create the Modal secret `aej-dbt-bq` with:
 
