@@ -4,6 +4,8 @@ dbt models for Analytics Engineering Jobs, executed on Modal against BigQuery.
 
 ## Setup
 
+### Local
+
 ```bash
 uv sync --locked
 modal setup
@@ -14,7 +16,7 @@ direnv allow
 
 ### GitHub Codespaces
 
-Add these personal Codespaces secrets before opening the codespace, scoped to this repository:
+Before creating a codespace, add these personal Codespaces secrets and scope them to this repository:
 
 ```text
 GCP_PROJECT_ID
@@ -22,14 +24,14 @@ SERVICE_ACCOUNT_JSON
 DBT_USER
 ```
 
-To skip dbt Wizard's provider key prompt, also add one of:
+Optionally add one provider key for dbt Wizard:
 
 ```text
 ANTHROPIC_API_KEY
 OPENAI_API_KEY
 ```
 
-After completing `wizard login` locally, store its credentials as a user-level Codespaces secret scoped to this repository:
+To reuse a local dbt Platform login, run `wizard login` locally and store the resulting credentials as a user-level Codespaces secret:
 
 ```bash
 gh secret set DBT_WIZARD_AUTH_JSON \
@@ -38,13 +40,15 @@ gh secret set DBT_WIZARD_AUTH_JSON \
   < ~/.dbt/wizard/auth.json
 ```
 
-Codespaces installs `uv`, ripgrep, dbt Fusion, dbt Wizard, Python tooling, and dbt packages automatically. It writes the Wizard credentials from that secret to `~/.dbt/wizard/auth.json` when the file is missing, and runs `scripts/configure-dbt-wizard` to write the non-secret project config under `~/.dbt/wizard/`. Wizard can refresh its local credentials without the setup overwriting them.
+Codespaces installs the Python and dbt toolchain automatically. On startup, it restores `~/.dbt/wizard/auth.json` only when the file is missing, preserving credentials that Wizard refreshes locally.
 
 ```bash
 wizard
 ```
 
-Wizard may still ask you to accept its Terms of Use. If Wizard reports missing provider auth or dbt credentials, confirm the relevant Codespaces secrets are scoped to this repository, then stop and restart the codespace. Update `DBT_WIZARD_AUTH_JSON` only if dbt invalidates the stored refresh token or a new codespace cannot refresh it.
+Wizard may still ask you to accept its Terms of Use. If credentials are missing, verify the secret scopes and restart the codespace. Replace `DBT_WIZARD_AUTH_JSON` only when a new codespace cannot refresh it.
+
+### Modal secrets
 
 Create the Modal secret `aej-dbt-bq` with:
 
@@ -54,9 +58,7 @@ SERVICE_ACCOUNT_JSON
 GCS_BUCKET_NAME
 ```
 
-`SERVICE_ACCOUNT_JSON` should contain the service-account JSON.
-
-Grant the service account BigQuery User (`roles/bigquery.user`) and BigQuery Data Editor (`roles/bigquery.dataEditor`) on the project configured by `GCP_PROJECT_ID`. See the [dbt BigQuery setup docs](https://docs.getdbt.com/docs/local/connect-data-platform/bigquery-setup#required-permissions).
+Set `SERVICE_ACCOUNT_JSON` to the complete service-account JSON. Grant that account BigQuery User (`roles/bigquery.user`) and BigQuery Data Editor (`roles/bigquery.dataEditor`) on `GCP_PROJECT_ID`. See the [dbt BigQuery setup docs](https://docs.getdbt.com/docs/local/connect-data-platform/bigquery-setup#required-permissions).
 
 Create the Modal secret `aej-dbt-healthchecks` with the Healthchecks.io ping URL:
 
@@ -133,6 +135,12 @@ mdbt build --select model_name
 mdbt test --target prd
 ```
 
+Targets write to:
+
+- `dev`: `dbt_dev_<user>`
+- `ci`: `dbt_ci_<PR number>`
+- `prd`: `dbt_prd`
+
 Build production models, then publish the Parquet files:
 
 ```bash
@@ -149,17 +157,11 @@ organizations.parquet
 
 Configure the output names, datasets, and relations in `parquet_exports.json`.
 
-Both objects are uploaded with `Cache-Control: no-cache`. Because they are updated separately, clients may briefly see files from different publishes.
-
-Targets write to:
-
-- `dev`: `dbt_dev_<user>`
-- `ci`: `dbt_ci_<PR number>`
-- `prd`: `dbt_prd`
+Both objects use `Cache-Control: no-cache`. Because they are updated separately, clients may briefly see files from different publishes.
 
 ## Scheduled production sync
 
-The deployed Modal app runs `dbt build --target prd` and then publishes the Parquet files four times daily, at 00:00, 06:00, 12:00, and 18:00 UTC:
+The deployed Modal app builds production and publishes Parquet files every six hours:
 
 ```python
 modal.Cron("0 */6 * * *")
@@ -173,7 +175,7 @@ Configure a Healthchecks.io check named `aej-dbt production sync` with:
 - Grace time: 60 minutes
 - Notification integration: email, Slack, or your preferred Healthchecks.io alert destination
 
-The first production run of each Sunday (UTC) is a full refresh (`dbt build --target prd --full-refresh`) instead of an incremental build; the rest of the week is incremental. The two GA4 base models (`base_ga4__events`, `base_ga4__users`) are pinned `+full_refresh: false` in `dbt_project.yml`, so the full refresh rebuilds every other incremental model but leaves those untouched. The chosen day is tracked in a `modal.Dict` named `aej-dbt-state` (created automatically), so it keeps working if the cron cadence changes: whatever the schedule, the day's first run claims the date and the later runs stay incremental. The claim is released if the refresh fails, so the next run retries.
+The first Sunday run in UTC performs a full refresh; all other runs are incremental. `base_ga4__events` and `base_ga4__users` remain incremental because `dbt_project.yml` sets `+full_refresh: false` for them. A `modal.Dict` named `aej-dbt-state` tracks the weekly refresh and releases a failed claim so the next run can retry.
 
 The scheduled function sends `/start` when it begins, a success ping after both dbt and Parquet publishing finish, and `/fail` if either step raises an error. Healthchecks pings are best-effort: monitoring outages do not block the sync.
 
@@ -187,7 +189,7 @@ uv run modal deploy app.py
 
 ### Continuous deployment
 
-GitHub Actions keeps lint, tests, and deployment in separate workflow files. Pull requests run the `Lint` and `Tests` workflows directly. After a push to `master`, the `Deploy` workflow calls those same reusable workflows and deploys the Modal app only after both pass.
+Pull requests run separate `Lint` and `Tests` workflows. Pushes to `master` run both before the `Deploy` workflow updates the Modal app.
 
 Create a Modal token for GitHub Actions, then add its values as repository secrets under **Settings → Secrets and variables → Actions**:
 
@@ -196,7 +198,7 @@ MODAL_TOKEN_ID
 MODAL_TOKEN_SECRET
 ```
 
-The workflow uses these credentials only for the `Deploy Modal` job. The application's BigQuery, Cloud Storage, and Healthchecks values remain in Modal Secrets and are not copied into GitHub.
+Only the deploy job uses these credentials. BigQuery, Cloud Storage, and Healthchecks values remain in Modal Secrets.
 
 ## Checks
 
