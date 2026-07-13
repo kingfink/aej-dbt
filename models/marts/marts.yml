@@ -1,0 +1,101 @@
+version: 2
+
+models:
+  - name: dim_email_messages
+    description: One row per provider email message across SendGrid and Resend.
+    columns:
+      - name: email_id
+        description: Stable surrogate key generated from the source and source email ID.
+        tests:
+          - not_null
+          - unique
+      - name: source
+        description: Email provider that sent the message.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - sendgrid
+                  - resend
+      - name: source_email_id
+        description: Message identifier supplied by the email provider.
+        tests:
+          - not_null
+      - name: subject
+        description: Email subject line when supplied by the provider.
+      - name: sent_ts
+        description: Earliest known sent-event timestamp for the message.
+
+  - name: dim_email_subscribers
+    description: >-
+      One row per normalized email address with a subscription lifecycle event.
+      Historical SendGrid resubscriptions are retained, while current subscription
+      state is authoritative only for Resend contacts.
+    columns:
+      - name: subscriber_id
+        description: Stable surrogate key generated from the normalized email address.
+        tests:
+          - not_null
+          - unique
+      - name: email_address
+        description: Lowercased and trimmed subscriber email address.
+        tests:
+          - not_null
+          - unique
+      - name: resend_contact_id
+        description: Resend contact identifier when the subscriber is known to Resend.
+      - name: is_subscribed
+        description: Whether the address is currently a subscribed Resend contact.
+        tests:
+          - not_null
+      - name: min_subscribed_ts
+        description: Earliest known subscription timestamp.
+      - name: max_subscribed_ts
+        description: Most recent known subscription or resubscription timestamp.
+      - name: min_unsubscribed_ts
+        description: Earliest known unsubscribe timestamp.
+      - name: max_unsubscribed_ts
+        description: Most recent known unsubscribe timestamp.
+  - name: fct_email_events
+    description: >-
+      One row per provider email event and recipient across SendGrid and Resend,
+      including synthetic sent events from the Resend backfill when no matching
+      webhook event exists.
+    columns:
+      - name: email_event_id
+        description: Stable identifier for the provider event and recipient.
+        tests:
+          - not_null
+          - unique
+      - name: subscriber_id
+        description: Subscriber dimension key generated from the normalized email address.
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref("dim_email_subscribers")
+                field: subscriber_id
+      - name: email_id
+        description: Message dimension key for the event.
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref("dim_email_messages")
+                field: email_id
+      - name: event_type
+        description: Provider-independent event type such as sent, delivered, opened, or clicked.
+        tests:
+          - not_null
+      - name: event_ts
+        description: Timestamp when the event occurred, in UTC.
+        tests:
+          - not_null
+      - name: email_event_details
+        description: >-
+          Native JSON object containing populated event-specific details such as
+          link_url, ip_address, user_agent, is_backfill,
+          is_privacy_or_bot_like, and privacy_or_bot_reason.
+        tests:
+          - not_null

@@ -1,0 +1,34 @@
+version: 2
+
+sources:
+  - name: sendgrid
+    database: analytics-engineering-jobs
+    schema: sendgrid
+    tables:
+      - name: webhooks
+
+models:
+  - name: stg_sendgrid__email_events
+    description: SendGrid webhook email events normalized to one row per event.
+    columns:
+      - name: event_id
+        description: SendGrid event identifier.
+        tests:
+          - not_null
+          - unique
+      - name: message_id
+        description: SendGrid message identifier.
+        tests:
+          - not_null
+      - name: email_address
+        description: Lowercased recipient email address.
+        tests:
+          - not_null
+      - name: event_type
+        description: Normalized SendGrid event type.
+        tests:
+          - not_null
+      - name: event_ts
+        description: Event timestamp in UTC.
+        tests:
+          - not_null

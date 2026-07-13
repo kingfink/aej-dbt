@@ -1,0 +1,94 @@
+version: 2
+
+models:
+  - name: int_email_message_events
+    description: Email message event spine across SendGrid and Resend.
+    columns:
+      - name: email_event_id
+        tests:
+          - not_null
+          - unique
+      - name: email_id
+        description: Message dimension key generated from source and source_email_id.
+        tests:
+          - not_null
+      - name: source
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - resend
+                  - sendgrid
+      - name: source_email_id
+        tests:
+          - not_null
+      - name: event_type
+        description: Normalized event type such as sent, delivered, opened, or clicked.
+        tests:
+          - not_null
+      - name: email_address
+        tests:
+          - not_null
+      - name: event_ts
+        tests:
+          - not_null
+  - name: int_email_messages
+    description: One row per provider email message across SendGrid and Resend.
+    columns:
+      - name: email_id
+        tests:
+          - not_null
+          - unique
+      - name: source
+        tests:
+          - not_null
+      - name: source_email_id
+        tests:
+          - not_null
+
+  - name: int_email_subscription_events
+    description: Subscriber lifecycle events derived from contact state and resubscriptions.
+    columns:
+      - name: source
+        description: Provider that produced the subscription event.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - resend
+                  - sendgrid
+      - name: resend_contact_id
+        description: Resend contact identifier, populated for Resend events.
+      - name: email_address
+        tests:
+          - not_null
+      - name: subscriber_event_type
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - subscribed
+                  - unsubscribed
+      - name: event_ts
+        tests:
+          - not_null
+
+  - name: int_email_subscribers
+    description: >-
+      One row per email address with a subscription lifecycle event. Current
+      subscription state is authoritative only for Resend contacts.
+    columns:
+      - name: subscriber_id
+        tests:
+          - not_null
+          - unique
+      - name: email_address
+        tests:
+          - not_null
+          - unique
+      - name: is_subscribed
+        tests:
+          - not_null
