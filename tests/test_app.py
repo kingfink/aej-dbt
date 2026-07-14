@@ -34,6 +34,14 @@ class FakeGCSClient:
         return self.buckets.setdefault(name, FakeGCSBucket())
 
 
+class FakeBigQueryClient:
+    def __init__(self):
+        self.deleted_datasets = []
+
+    def delete_dataset(self, dataset, *, delete_contents, not_found_ok):
+        self.deleted_datasets.append((dataset, delete_contents, not_found_ok))
+
+
 class DbtCommandTest(unittest.TestCase):
     def test_preserves_quoted_args_and_appends_shared_options(self):
         command = app.build_dbt_command(
@@ -128,6 +136,10 @@ class DbtRunTest(unittest.TestCase):
             ):
                 app.dbt_env(target)
 
+    def test_rejects_non_numeric_pr_number(self):
+        with self.assertRaisesRegex(ValueError, "only digits"):
+            app.dbt_env("ci", pr_number="feature-123")
+
 
 class AppDispatchTest(unittest.TestCase):
     def test_publish_mode_dispatches_to_parquet_publish_job(self):
@@ -139,6 +151,35 @@ class AppDispatchTest(unittest.TestCase):
 
         publish_parquet.assert_called_once_with()
         run_dbt.assert_not_called()
+
+    def test_cleanup_mode_dispatches_to_ci_cleanup_job(self):
+        with (
+            patch("app.run_dbt.remote") as run_dbt,
+            patch("app.publish_parquet.remote") as publish_parquet,
+            patch("app.cleanup_ci_dataset.remote") as cleanup_ci_dataset,
+        ):
+            app.dispatch(cleanup_ci=True, pr_number="123")
+
+        cleanup_ci_dataset.assert_called_once_with("123")
+        publish_parquet.assert_not_called()
+        run_dbt.assert_not_called()
+
+    def test_rejects_multiple_dispatch_modes(self):
+        with self.assertRaisesRegex(ValueError, "cannot be used together"):
+            app.dispatch(publish=True, cleanup_ci=True)
+
+
+class DbtCiCleanupTest(unittest.TestCase):
+    def test_deletes_pr_dataset_and_its_contents(self):
+        client = FakeBigQueryClient()
+
+        with patch.dict("os.environ", {"GCP_PROJECT_ID": "configured-project"}):
+            app.delete_ci_dataset("123", client=client)
+
+        self.assertEqual(
+            client.deleted_datasets,
+            [("configured-project.dbt_ci_123", True, True)],
+        )
 
 
 class ParquetPublishingAdapterTest(unittest.TestCase):

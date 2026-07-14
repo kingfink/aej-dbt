@@ -88,6 +88,18 @@ def create_bigquery_client():
     )
 
 
+def ci_dataset_name(pr_number: str) -> str:
+    if not pr_number.isdigit():
+        raise ValueError("pr_number must contain only digits")
+    return f"dbt_ci_{pr_number}"
+
+
+def delete_ci_dataset(pr_number: str, *, client=None) -> None:
+    client = client or create_bigquery_client()
+    dataset = f"{os.environ['GCP_PROJECT_ID']}.{ci_dataset_name(pr_number)}"
+    client.delete_dataset(dataset, delete_contents=True, not_found_ok=True)
+
+
 def create_gcs_client():
     from google.cloud import storage
 
@@ -142,6 +154,7 @@ def dbt_env(target: str, *, dbt_user: str = "", pr_number: str = "") -> dict[str
         number = pr_number or os.environ.get("AEJ_DBT_PR_NUMBER", "")
         if not number:
             raise ValueError("pr_number is required for the ci target")
+        ci_dataset_name(number)
         return {"PR_NUMBER": number}
     return {}
 
@@ -280,6 +293,11 @@ def publish_parquet() -> None:
     execute_parquet_publish()
 
 
+@app.function(image=image, secrets=[bigquery_secret], timeout=10 * 60)
+def cleanup_ci_dataset(pr_number: str) -> None:
+    delete_ci_dataset(pr_number)
+
+
 @app.function(
     image=image,
     secrets=[bigquery_secret, healthchecks_secret],
@@ -318,9 +336,15 @@ def dispatch(
     dbt_user: str = "",
     pr_number: str = "",
     publish: bool = False,
+    cleanup_ci: bool = False,
 ) -> None:
+    if publish and cleanup_ci:
+        raise ValueError("publish and cleanup_ci cannot be used together")
     if publish:
         publish_parquet.remote()
+        return
+    if cleanup_ci:
+        cleanup_ci_dataset.remote(pr_number)
         return
 
     run_dbt.remote(
@@ -338,6 +362,7 @@ def main(
     dbt_user: str = "",
     pr_number: str = "",
     publish: bool = False,
+    cleanup_ci: bool = False,
 ) -> None:
     dispatch(
         cmd=cmd,
@@ -345,4 +370,5 @@ def main(
         dbt_user=dbt_user,
         pr_number=pr_number,
         publish=publish,
+        cleanup_ci=cleanup_ci,
     )

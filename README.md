@@ -189,7 +189,21 @@ uv run modal deploy app.py
 
 ### Continuous deployment
 
-Pull requests run separate `Lint` and `Tests` workflows. Pushes to `master` run both before the `Deploy` workflow updates the Modal app.
+Pull requests run `Ruff`, `Unit tests`, `dbt parse`, and `dbt build` checks. Pushes to `master` run Ruff, unit tests, and dbt parse before the `Deploy` workflow updates the Modal app.
+
+The `dbt parse` check installs dbt locally on the GitHub-hosted runner, resolves the locked packages, and parses the project without warehouse credentials. It runs for every pull request, including pull requests from forks.
+
+The `dbt build` check runs project-owned models and their tests in Modal for pull requests whose branch is in this repository. It uses the `ci` target and writes to the pull request's isolated `dbt_ci_<PR number>` dataset. Pull requests from forks skip this credentialed check because GitHub does not provide repository secrets to fork workflows.
+
+Model commands should go through `mdbt`, which keeps Modal dispatch, target selection, and package-lock handling in one place. Local shells can use `mdbt` because `.envrc` adds `bin` to `PATH`; GitHub Actions uses the explicit path:
+
+```bash
+AEJ_DBT_TARGET=ci AEJ_DBT_PR_NUMBER=123 ./bin/mdbt build --select package:this,resource_type:model
+```
+
+When an in-repository pull request closes, the cleanup workflow deletes its CI dataset and all contained relations. Cleanup is an application maintenance operation rather than a dbt command, so it calls the Modal entrypoint directly.
+
+Configure the default-branch ruleset to require the exact check names `Ruff`, `Unit tests`, `dbt parse`, and `dbt build`. Keep the workflow-level dbt trigger unfiltered so required check names are always reported; selection inside the build limits warehouse work to project-owned models.
 
 Create a Modal token for GitHub Actions, then add its values as repository secrets under **Settings → Secrets and variables → Actions**:
 
@@ -198,7 +212,7 @@ MODAL_TOKEN_ID
 MODAL_TOKEN_SECRET
 ```
 
-Only the deploy job uses these credentials. BigQuery, Cloud Storage, and Healthchecks values remain in Modal Secrets.
+The deploy and in-repository dbt CI jobs use these credentials. BigQuery, Cloud Storage, and Healthchecks values remain in Modal Secrets and are not copied into GitHub Actions.
 
 ## Checks
 
