@@ -1,6 +1,109 @@
 version: 2
 
 models:
+  - name: dim_jobs
+    description: One row per organization and job slug for every job published on Analytics Engineering Jobs.
+    columns:
+      - name: job_id
+        description: Stable surrogate key generated from the organization and job slugs.
+        tests:
+          - not_null
+          - unique
+      - name: organization_id
+        description: Organization dimension key for the organization that published the job.
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref("dim_organizations")
+                field: organization_id
+      - name: organization_slug
+        description: Slug identifying the organization that published the job.
+        tests:
+          - not_null
+      - name: job_slug
+        description: Slug identifying the job within its organization.
+        tests:
+          - not_null
+      - name: is_active
+        description: Whether the job is currently active on the site.
+        tests:
+          - accepted_values:
+              arguments:
+                values:
+                  - true
+                  - false
+                quote: false
+      - name: is_featured
+        description: Whether the job is featured on the site.
+        tests:
+          - accepted_values:
+              arguments:
+                values:
+                  - true
+                  - false
+                quote: false
+      - name: date_added
+        description: Date the job was added to the site.
+      - name: date_removed
+        description: Date the job was removed from the site, when applicable.
+      - name: title
+        description: Published job title.
+      - name: posting_url
+        description: URL of the external job posting.
+      - name: description
+        description: Published job description.
+      - name: location
+        description: Published job location.
+      - name: salary
+        description: Published salary information.
+      - name: tags
+        description: Tags assigned to the job.
+
+  - name: dim_organizations
+    description: One row per organization published on Analytics Engineering Jobs.
+    columns:
+      - name: organization_id
+        description: Stable surrogate key generated from the organization slug.
+        tests:
+          - not_null
+          - unique
+      - name: organization_slug
+        description: Slug identifying the organization.
+        tests:
+          - not_null
+          - unique
+      - name: is_active
+        description: Whether the organization is currently active on the site.
+        tests:
+          - accepted_values:
+              arguments:
+                values:
+                  - true
+                  - false
+                quote: false
+      - name: is_featured
+        description: Whether the organization is featured on the site.
+        tests:
+          - accepted_values:
+              arguments:
+                values:
+                  - true
+                  - false
+                quote: false
+      - name: name
+        description: Published organization name.
+      - name: description
+        description: Published organization description.
+      - name: description_short
+        description: Short published organization description.
+      - name: organization_url
+        description: Published organization website URL.
+      - name: headcount
+        description: Published or inferred organization headcount range.
+      - name: location
+        description: Published or inferred organization location.
+
   - name: dim_email_messages
     description: One row per provider email message across SendGrid and Resend.
     columns:

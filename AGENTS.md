@@ -22,6 +22,7 @@
 - Do not add a separate date column when the timestamp is sufficient; retain date-grained fields as dates when that is their actual grain.
 - Use `source`, not `source_system`.
 - Generate surrogate keys once at the earliest shared layer and reuse them downstream.
+- Give each mart a single `_id` surrogate primary key; retain natural or composite identifiers as business keys.
 - Staging models may retain source-native names; intermediate and mart models should use canonical project names.
 - Use `stg_`, `int_`, `dim_`, and `fct_` prefixes consistently.
 
@@ -79,6 +80,7 @@
 - Test primary keys for non-nullness and uniqueness.
 - Test foreign-key relationships.
 - Add `accepted_values` tests for every categorical column so supported values are discoverable in model YAML without querying the warehouse.
+- Avoid tests that only restate static configuration; tests should validate behavior or meaningful invariants.
 - Format changed SQL, parse the project, and build affected models and their descendants.
 - Run a full build for broad naming, staging, or contract changes.
 
