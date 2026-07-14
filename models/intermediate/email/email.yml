@@ -72,7 +72,7 @@ models:
           - not_null
 
   - name: int_email_subscription_events
-    description: Subscriber lifecycle events derived from contact state and resubscriptions.
+    description: Subscriber lifecycle events derived from contact state and resubscriptions. Backfilled unsubscribe states use the snapshot timestamp as the first known observation and do not assert that the unsubscribe occurred at that precise time. When events share a timestamp, observed webhook state takes precedence over backfilled state, then unsubscribed takes precedence over subscribed.
     columns:
       - name: source
         description: Provider that produced the subscription event.
@@ -99,6 +99,16 @@ models:
       - name: event_ts
         tests:
           - not_null
+      - name: is_backfill
+        description: Whether the lifecycle event was inferred from the Resend contact snapshot rather than observed in a webhook.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - true
+                  - false
+                quote: false
 
   - name: int_email_subscribers
     description: |
