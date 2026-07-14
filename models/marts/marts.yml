@@ -261,7 +261,7 @@ models:
                 quote: false
 
   - name: fct_email_subscriber_messages
-    description: One row per email message and subscriber, with repeated opens and clicks retained in event counts. All message-level metrics use sent_ts as their time basis.
+    description: One row per email message and subscriber, with repeated opens and clicks retained in event counts. All message-level metrics use min_sent_ts as their time basis.
     columns:
       - name: email_subscriber_message_id
         description: Stable surrogate key generated from the email and subscriber keys.
@@ -284,19 +284,19 @@ models:
               arguments:
                 to: ref("dim_email_subscribers")
                 field: subscriber_id
-      - name: sent_ts
+      - name: min_sent_ts
         description: Earliest sent-event timestamp for the message and subscriber; the time basis for all message-level metrics.
-      - name: delivered_ts
+      - name: min_delivered_ts
         description: Earliest delivered-event timestamp for the message and subscriber.
       - name: min_opened_ts
         description: Earliest open-event timestamp, including privacy-proxied and bot-like activity.
       - name: min_clicked_ts
         description: Earliest click-event timestamp, including privacy-proxied and bot-like activity.
-      - name: open_event_count
+      - name: n_events_opened
         description: Number of open events, including repeated, privacy-proxied, and bot-like activity.
         tests:
           - not_null
-      - name: click_event_count
+      - name: n_events_clicked
         description: Number of click events, including repeated, privacy-proxied, and bot-like activity.
         tests:
           - not_null
