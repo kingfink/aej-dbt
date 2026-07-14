@@ -1,0 +1,59 @@
+with
+    provider_cutover as (
+        select date_add(min(date(backfilled_ts)), interval 1 day) as resend_start_date
+        from {{ ref("stg_resend__contacts") }}
+    ),
+    subscriber_lifetimes as (
+        select subscriber_id, min(date(event_ts)) as first_event_date
+        from {{ ref("int_email_subscription_events") }}
+        group by subscriber_id
+    ),
+    subscriber_dates as (
+        select d.date_day, s.subscriber_id
+        from subscriber_lifetimes as s
+        left join {{ ref("dates") }} as d on d.date_day >= s.first_event_date
+    ),
+    daily_status as (
+        select
+            d.date_day,
+            d.subscriber_id,
+            logical_or(
+                e.subscriber_event_type = "subscribed" and date(e.event_ts) = d.date_day
+            ) as subscribed_on_date,
+            max(
+                if(
+                    e.subscriber_event_type = "subscribed"
+                    and date(e.event_ts) < d.date_day,
+                    e.event_ts,
+                    null
+                )
+            ) as max_subscribed_ts_before_date,
+            max(
+                if(
+                    e.subscriber_event_type = "unsubscribed"
+                    and date(e.event_ts) < d.date_day,
+                    e.event_ts,
+                    null
+                )
+            ) as max_unsubscribed_ts_before_date
+        from subscriber_dates as d
+        cross join provider_cutover as c
+        left join
+            {{ ref("int_email_subscription_events") }} as e
+            on d.subscriber_id = e.subscriber_id
+            and date(e.event_ts) <= d.date_day
+            and e.source = if(d.date_day < c.resend_start_date, "sendgrid", "resend")
+        group by d.date_day, d.subscriber_id
+    )
+
+select
+    {{ dbt_utils.generate_surrogate_key(["date_day", "subscriber_id"]) }}
+    as email_subscriber_daily_id,
+    date_day,
+    subscriber_id,
+    coalesce(subscribed_on_date, false)
+    or coalesce(
+        max_subscribed_ts_before_date > max_unsubscribed_ts_before_date,
+        max_subscribed_ts_before_date is not null
+    ) as is_subscribed
+from daily_status

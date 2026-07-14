@@ -4,6 +4,8 @@ select
     e.email_id,
     e.event_type,
     e.event_ts,
+    e.event_type in ("opened", "clicked") as is_engagement,
+    e.privacy_or_bot_reason is not null as is_privacy_or_bot_like,
     json_strip_nulls(
         json_object(
             "link_url",
