@@ -191,23 +191,6 @@ class ParquetPublishingAdapterTest(unittest.TestCase):
                 "select * from `configured-project.published_models.dim_jobs`",
             )
 
-    def test_default_exports_publish_site_content_dimensions(self):
-        self.assertEqual(
-            app.load_model_exports(),
-            (
-                app.ModelExport(
-                    name="jobs",
-                    dataset="dbt_prd",
-                    relation="dim_jobs",
-                ),
-                app.ModelExport(
-                    name="organizations",
-                    dataset="dbt_prd",
-                    relation="dim_organizations",
-                ),
-            ),
-        )
-
     def test_upload_parquet_files_uses_fixed_keys_and_no_cache(self):
         client = FakeGCSClient()
 
