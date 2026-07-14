@@ -17,10 +17,9 @@ with
         select
             d.date_day,
             d.subscriber_id,
-            countif(
+            logical_or(
                 e.subscriber_event_type = "subscribed" and date(e.event_ts) = d.date_day
-            )
-            > 0 as subscribed_on_date,
+            ) as subscribed_on_date,
             max(
                 if(
                     e.subscriber_event_type = "subscribed"
@@ -43,11 +42,7 @@ with
             {{ ref("int_email_subscription_events") }} as e
             on d.subscriber_id = e.subscriber_id
             and date(e.event_ts) <= d.date_day
-            and if(
-                d.date_day < c.resend_start_date,
-                e.source = "sendgrid",
-                e.source = "resend"
-            )
+            and e.source = if(d.date_day < c.resend_start_date, "sendgrid", "resend")
         group by d.date_day, d.subscriber_id
     )
 
@@ -56,12 +51,9 @@ select
     as email_subscriber_daily_id,
     date_day,
     subscriber_id,
-    subscribed_on_date
-    or (
+    coalesce(subscribed_on_date, false)
+    or coalesce(
+        max_subscribed_ts_before_date > max_unsubscribed_ts_before_date,
         max_subscribed_ts_before_date is not null
-        and (
-            max_unsubscribed_ts_before_date is null
-            or max_subscribed_ts_before_date > max_unsubscribed_ts_before_date
-        )
     ) as is_subscribed
 from daily_status

@@ -15,6 +15,7 @@
 - Prefer `any_value` when any non-null representative value is acceptable.
 - Prefer `min_by` and `max_by` over ordered `array_agg(...)[safe_offset(...)]`.
 - Prefer a readable `case` or `if` for state logic; use `coalesce` for simple null defaults.
+- Prefer BigQuery `logical_or` and `logical_and` for boolean aggregation rather than expressing them as conditional counts.
 - Use native BigQuery `JSON` for sparse, event-specific details.
 - Create macros for genuinely reusable or source-normalization logic, not one-off expressions.
 
