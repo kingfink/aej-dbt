@@ -70,7 +70,8 @@
 
 - Update model YAML whenever columns or semantics change.
 - Test primary keys for non-nullness and uniqueness.
-- Test foreign-key relationships and constrained categorical values.
+- Test foreign-key relationships.
+- Add `accepted_values` tests for every categorical column so supported values are discoverable in model YAML without querying the warehouse.
 - Format changed SQL, parse the project, and build affected models and their descendants.
 - Run a full build for broad naming, staging, or contract changes.
 

@@ -27,12 +27,31 @@ models:
         description: Normalized event type such as sent, delivered, opened, or clicked.
         tests:
           - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - bounced
+                  - clicked
+                  - delivered
+                  - delivery_delayed
+                  - opened
+                  - resubscribed
+                  - sent
+                  - suppressed
       - name: email_address
         tests:
           - not_null
       - name: event_ts
         tests:
           - not_null
+      - name: privacy_or_bot_reason
+        description: Classification assigned to privacy-proxied or automated open and click activity.
+        tests:
+          - accepted_values:
+              arguments:
+                values:
+                  - bot_or_security_scanner
+                  - privacy_or_image_proxy
   - name: int_email_messages
     description: One row per provider email message across SendGrid and Resend.
     columns:
@@ -43,6 +62,11 @@ models:
       - name: source
         tests:
           - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - resend
+                  - sendgrid
       - name: source_email_id
         tests:
           - not_null

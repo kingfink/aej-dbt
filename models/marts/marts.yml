@@ -16,8 +16,8 @@ models:
           - accepted_values:
               arguments:
                 values:
-                  - sendgrid
                   - resend
+                  - sendgrid
       - name: source_email_id
         description: Message identifier supplied by the email provider.
         tests:
@@ -88,6 +88,17 @@ models:
         description: Provider-independent event type such as sent, delivered, opened, or clicked.
         tests:
           - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - bounced
+                  - clicked
+                  - delivered
+                  - delivery_delayed
+                  - opened
+                  - resubscribed
+                  - sent
+                  - suppressed
       - name: event_ts
         description: Timestamp when the event occurred, in UTC.
         tests:

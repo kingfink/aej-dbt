@@ -43,6 +43,11 @@ models:
       - name: event_type
         tests:
           - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - contact.created
+                  - contact.updated
       - name: event_created_ts
         description: Timestamp when Resend created the webhook event.
         tests:
@@ -67,6 +72,16 @@ models:
       - name: event_type
         tests:
           - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - bounced
+                  - clicked
+                  - delivered
+                  - delivery_delayed
+                  - opened
+                  - sent
+                  - suppressed
       - name: event_created_ts
         tests:
           - not_null

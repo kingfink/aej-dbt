@@ -28,6 +28,14 @@ models:
         description: Normalized SendGrid event type.
         tests:
           - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - clicked
+                  - delivered
+                  - opened
+                  - resubscribed
+                  - sent
       - name: event_ts
         description: Event timestamp in UTC.
         tests:
