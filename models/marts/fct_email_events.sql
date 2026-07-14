@@ -1,6 +1,6 @@
 select
     e.email_event_id,
-    e.subscriber_id,
+    s.subscriber_id,
     e.email_id,
     e.event_type,
     e.event_ts,
@@ -23,3 +23,4 @@ select
         )
     ) as email_event_details
 from {{ ref("int_email_message_events") }} as e
+left join {{ ref("int_email_subscribers") }} as s on e.email_address = s.email_address

@@ -69,7 +69,7 @@
 - SendGrid subscription state is authoritative for historical dates through the Resend contact-import cutover. The migration exported SendGrid contacts and imported them into Resend with both subscribed and unsubscribed status.
 - Derive the cutover from the Resend contacts backfill. Use SendGrid state through the backfill date and Resend state beginning the following UTC date so same-day subscription is preserved without inventing a precise historical unsubscribe time.
 - SendGrid data may also contribute historical engagement context.
-- Build subscription status fields in `int_email_subscribers` from the normalized lifecycle in `int_email_subscription_events` rather than independently reconciling provider contact states. Message recipients may contribute subscriber identity coverage but do not establish subscription status.
+- Build `int_email_subscribers` from the normalized lifecycle in `int_email_subscription_events` rather than independently reconciling provider contact states.
 - For daily subscription state, mark a subscriber as subscribed when they entered the date subscribed or had a subscribe event during the date; a later unsubscribe on the same date does not erase that day's subscription. Do not add source, webhook, or backfill precedence without a concrete requirement.
 - Normalize provider event types upstream through shared logic.
 - Keep source-specific event categories in staging and expose the consolidated category domain in intermediate and mart YAML through `accepted_values` tests.

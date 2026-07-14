@@ -12,10 +12,6 @@ models:
         description: Message dimension key generated from source and source_email_id.
         tests:
           - not_null
-      - name: subscriber_id
-        description: Stable subscriber key generated from the normalized email address.
-        tests:
-          - not_null
       - name: source
         tests:
           - not_null
@@ -118,7 +114,7 @@ models:
 
   - name: int_email_subscribers
     description: |
-      One row per email address observed in subscription lifecycle or message event data. The current `is_subscribed` value reflects Resend contact state; message recipients contribute identity coverage but do not establish subscription status.
+      One row per email address with a subscription lifecycle event. The current `is_subscribed` value reflects Resend contact state; SendGrid events contribute historical context but do not establish current subscription status.
     columns:
       - name: subscriber_id
         tests:

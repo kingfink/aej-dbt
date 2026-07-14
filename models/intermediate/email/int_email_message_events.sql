@@ -62,7 +62,6 @@ with
 
 select
     email_event_id,
-    {{ dbt_utils.generate_surrogate_key(["email_address"]) }} as subscriber_id,
     {{ dbt_utils.generate_surrogate_key(["source", "source_email_id"]) }} as email_id,
     source,
     event_type,

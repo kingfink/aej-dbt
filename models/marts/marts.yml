@@ -132,7 +132,7 @@ models:
 
   - name: dim_email_subscribers
     description: |
-      One row per normalized email address observed in subscription lifecycle or message event data. The current `is_subscribed` value reflects Resend contact state; message recipients contribute identity coverage but do not establish subscription status.
+      One row per normalized email address with a subscription lifecycle event. The current `is_subscribed` value reflects Resend contact state; SendGrid events contribute historical context but do not establish current subscription status.
     columns:
       - name: subscriber_id
         description: Stable surrogate key generated from the normalized email address.
@@ -169,9 +169,8 @@ models:
           - not_null
           - unique
       - name: subscriber_id
-        description: Subscriber dimension key generated from the normalized email address.
+        description: Subscriber dimension key when the event recipient has a known subscription lifecycle.
         tests:
-          - not_null
           - relationships:
               arguments:
                 to: ref("dim_email_subscribers")
@@ -261,7 +260,7 @@ models:
                 quote: false
 
   - name: fct_email_subscriber_messages
-    description: One row per email message and subscriber, with repeated opens and clicks retained in event counts. All message-level metrics use min_sent_ts as their time basis.
+    description: One row per email message and known subscriber, with repeated opens and clicks retained in event counts. Event recipients without a known subscription lifecycle remain in `fct_email_events` but are outside this subscriber-level fact. All message-level metrics use min_sent_ts as their time basis.
     columns:
       - name: email_subscriber_message_id
         description: Stable surrogate key generated from the email and subscriber keys.

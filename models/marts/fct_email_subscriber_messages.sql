@@ -10,4 +10,5 @@ select
     countif(event_type = "opened") as n_events_opened,
     countif(event_type = "clicked") as n_events_clicked
 from {{ ref("fct_email_events") }}
+where subscriber_id is not null
 group by email_id, subscriber_id
