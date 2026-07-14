@@ -15,11 +15,15 @@ jobs:
   tests:
     uses: ./.github/workflows/tests.yml
 
+  dbt:
+    uses: ./.github/workflows/dbt.yml
+
   deploy:
     name: Deploy Modal
     needs:
       - lint
       - tests
+      - dbt
     runs-on: ubuntu-latest
     concurrency:
       group: modal-production

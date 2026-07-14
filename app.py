@@ -132,6 +132,14 @@ def dbt_target(args: list[str]) -> str:
     return ""
 
 
+def resolve_dbt_target(cmd: str, target: str = "") -> str:
+    return (
+        dbt_target(shlex.split(cmd))
+        or target
+        or os.environ.get("AEJ_DBT_TARGET", "dev")
+    )
+
+
 def dbt_env(target: str, *, dbt_user: str = "", pr_number: str = "") -> dict[str, str]:
     if target == "dev":
         user = dbt_user or os.environ.get("AEJ_DBT_USER", "")
@@ -152,11 +160,7 @@ def execute_dbt(
     dbt_user: str = "",
     pr_number: str = "",
 ) -> None:
-    target = (
-        dbt_target(shlex.split(cmd))
-        or target
-        or os.environ.get("AEJ_DBT_TARGET", "dev")
-    )
+    target = resolve_dbt_target(cmd, target)
     subprocess.run(
         build_dbt_command(cmd, target=target),
         check=True,

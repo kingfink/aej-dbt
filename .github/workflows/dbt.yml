@@ -1,0 +1,48 @@
+name: dbt
+
+"on":
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  parse:
+    name: dbt parse
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install dbt
+        run: |
+          mkdir -p "$RUNNER_TEMP/dbt-bin"
+          bash scripts/install-dbt-fusion "$RUNNER_TEMP/dbt-bin"
+          echo "$RUNNER_TEMP/dbt-bin" >> "$GITHUB_PATH"
+      - name: Resolve dbt packages
+        run: bash scripts/dbt-deps
+      - name: Verify package lock
+        run: git diff --exit-code -- package-lock.yml
+      - name: Parse project
+        run: bash scripts/dbt-parse
+
+  build:
+    name: dbt build
+    needs: parse
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    concurrency:
+      group: dbt-ci-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    env:
+      AEJ_DBT_PR_NUMBER: ${{ github.event.pull_request.number }}
+      AEJ_DBT_TARGET: ci
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        with:
+          enable-cache: true
+          python-version: "3.13"
+      - run: uv sync --locked
+      - run: ./bin/mdbt build --select package:this,resource_type:model
