@@ -1,0 +1,104 @@
+version: 2
+
+sources:
+  - name: resend
+    database: analytics-engineering-jobs
+    schema: resend_webhooks
+    tables:
+      - name: resend_contacts_backfill
+      - name: resend_emails_backfill
+      - name: resend_wh_contacts
+      - name: resend_wh_emails
+
+models:
+  - name: stg_resend__contacts
+    description: Current-ish Resend contact state captured by the contacts backfill.
+    columns:
+      - name: contact_id
+        tests:
+          - not_null
+          - unique
+      - name: email_address
+        tests:
+          - not_null
+      - name: is_subscribed
+        tests:
+          - not_null
+      - name: contact_created_ts
+        tests:
+          - not_null
+      - name: backfilled_ts
+        tests:
+          - not_null
+
+  - name: stg_resend__contact_events
+    description: Resend contact webhook events.
+    columns:
+      - name: contact_id
+        tests:
+          - not_null
+      - name: email_address
+        tests:
+          - not_null
+      - name: event_type
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - contact.created
+                  - contact.updated
+      - name: event_created_ts
+        description: Timestamp when Resend created the webhook event.
+        tests:
+          - not_null
+      - name: is_subscribed
+        tests:
+          - not_null
+
+  - name: stg_resend__email_events
+    description: Resend email webhook events flattened to one row per event recipient.
+    columns:
+      - name: email_event_id
+        tests:
+          - not_null
+          - unique
+      - name: message_id
+        tests:
+          - not_null
+      - name: email_address
+        tests:
+          - not_null
+      - name: event_type
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - bounced
+                  - clicked
+                  - delivered
+                  - delivery_delayed
+                  - opened
+                  - sent
+                  - suppressed
+      - name: event_created_ts
+        tests:
+          - not_null
+
+  - name: stg_resend__emails_backfill
+    description: Resend email backfill flattened to one row per message recipient.
+    columns:
+      - name: email_event_id
+        tests:
+          - not_null
+          - unique
+      - name: message_id
+        tests:
+          - not_null
+      - name: email_address
+        tests:
+          - not_null
+      - name: email_created_ts
+        tests:
+          - not_null
