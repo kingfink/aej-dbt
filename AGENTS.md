@@ -65,7 +65,9 @@
 - Resend is the current and authoritative email provider.
 - Only Resend contact state determines `is_subscribed`.
 - A SendGrid-only address is not currently subscribed.
-- SendGrid data may contribute historical subscription and engagement context.
+- SendGrid subscription state is authoritative for historical dates through the Resend contact-import cutover. The migration exported SendGrid contacts and imported them into Resend with both subscribed and unsubscribed status.
+- Derive the cutover from the Resend contacts backfill. Use SendGrid state through the backfill date and Resend state beginning the following UTC date so same-day subscription is preserved without inventing a precise historical unsubscribe time.
+- SendGrid data may also contribute historical engagement context.
 - Build `int_email_subscribers` from the normalized lifecycle in `int_email_subscription_events` rather than independently reconciling provider contact states.
 - For daily subscription state, mark a subscriber as subscribed when they entered the date subscribed or had a subscribe event during the date; a later unsubscribe on the same date does not erase that day's subscription. Do not add source, webhook, or backfill precedence without a concrete requirement.
 - Normalize provider event types upstream through shared logic.

@@ -230,7 +230,7 @@ models:
           - not_null
 
   - name: fct_email_subscribers_daily
-    description: One row per UTC date and subscriber from the subscriber's first lifecycle event through the current date, indicating whether the subscriber was subscribed at any point during the date. SendGrid-only subscribers remain unsubscribed, and backfilled unsubscribes take effect when first observed.
+    description: One row per UTC date and subscriber from the subscriber's first lifecycle event through the current date, indicating whether the subscriber was subscribed at any point during the date. SendGrid state is used through the Resend contact-import date; Resend state is authoritative beginning the following date because the migration imported both subscribed and unsubscribed contact state. Backfilled unsubscribes represent the state known at migration rather than a precise historical unsubscribe date.
     columns:
       - name: email_subscriber_daily_id
         description: Stable surrogate key generated from the date and subscriber.

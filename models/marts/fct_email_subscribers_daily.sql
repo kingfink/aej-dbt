@@ -1,4 +1,8 @@
 with
+    provider_cutover as (
+        select date_add(min(date(backfilled_ts)), interval 1 day) as resend_start_date
+        from {{ ref("stg_resend__contacts") }}
+    ),
     subscriber_lifetimes as (
         select subscriber_id, min(date(event_ts)) as first_event_date
         from {{ ref("int_email_subscription_events") }}
@@ -34,11 +38,16 @@ with
                 )
             ) as max_unsubscribed_ts_before_date
         from subscriber_dates as d
+        cross join provider_cutover as c
         left join
             {{ ref("int_email_subscription_events") }} as e
             on d.subscriber_id = e.subscriber_id
-            and e.source = "resend"
             and date(e.event_ts) <= d.date_day
+            and if(
+                d.date_day < c.resend_start_date,
+                e.source = "sendgrid",
+                e.source = "resend"
+            )
         group by d.date_day, d.subscriber_id
     )
 
