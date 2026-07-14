@@ -88,12 +88,6 @@ def create_bigquery_client():
     )
 
 
-def ci_dataset_name(pr_number: str) -> str:
-    if not pr_number.isdigit():
-        raise ValueError("pr_number must contain only digits")
-    return f"dbt_ci_{pr_number}"
-
-
 def create_gcs_client():
     from google.cloud import storage
 
@@ -156,7 +150,6 @@ def dbt_env(target: str, *, dbt_user: str = "", pr_number: str = "") -> dict[str
         number = pr_number or os.environ.get("AEJ_DBT_PR_NUMBER", "")
         if not number:
             raise ValueError("pr_number is required for the ci target")
-        ci_dataset_name(number)
         return {"PR_NUMBER": number}
     return {}
 

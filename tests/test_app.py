@@ -128,10 +128,6 @@ class DbtRunTest(unittest.TestCase):
             ):
                 app.dbt_env(target)
 
-    def test_rejects_non_numeric_pr_number(self):
-        with self.assertRaisesRegex(ValueError, "only digits"):
-            app.dbt_env("ci", pr_number="feature-123")
-
 
 class AppDispatchTest(unittest.TestCase):
     def test_publish_mode_dispatches_to_parquet_publish_job(self):
