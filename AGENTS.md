@@ -52,14 +52,21 @@
   - `email_id`: warehouse message key.
   - `email_event_id`: individual provider event and recipient identifier.
   - `subscriber_id`: warehouse subscriber key.
+- The grain of `dim_email_messages` is one row per `source` and `source_email_id`.
+- The grain of `dim_email_subscribers` is one row per normalized email address.
+- The grain of `fct_email_events` is one row per provider event and recipient.
 - Put message attributes in `dim_email_messages`.
 - Put subscriber attributes in `dim_email_subscribers`.
 - Keep `fct_email_events` focused on keys, event type, event timestamp, and structured event details.
+- Put sparse event attributes such as link URL, IP address, user agent, backfill status, and privacy or bot classification in the native JSON `email_event_details` column.
 - Resend is the current and authoritative email provider.
 - Only Resend contact state determines `is_subscribed`.
 - A SendGrid-only address is not currently subscribed.
 - SendGrid data may contribute historical subscription and engagement context.
+- Build `int_email_subscribers` from the normalized lifecycle in `int_email_subscription_events` rather than independently reconciling provider contact states.
 - Normalize provider event types upstream through shared logic.
+- Keep source-specific event categories in staging and expose the consolidated category domain in intermediate and mart YAML through `accepted_values` tests.
+- Do not expose `signup_page_url` until ongoing Resend signup attribution is captured reliably; follow-up work is tracked in `kingfink/analytics-engineering-jobs#1437`.
 
 ## Site content modeling
 
