@@ -4,14 +4,12 @@ import shlex
 import subprocess
 import tempfile
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from pathlib import Path
 
 import modal
 
-CI_RETENTION = timedelta(days=30)
-CI_LAST_USED_LABEL = "ci_last_used"
-CI_LAST_USED_FORMAT = "%Y%m%dt%H%M%Sz"
+CI_RELATION_EXPIRATION_DAYS = 30
 
 
 @dataclass(frozen=True)
@@ -102,7 +100,6 @@ def configure_ci_dataset(
     pr_number: str,
     *,
     client=None,
-    now: datetime | None = None,
 ) -> None:
     client = client or create_bigquery_client()
     project = os.environ["GCP_PROJECT_ID"]
@@ -111,79 +108,16 @@ def configure_ci_dataset(
     for query in [
         (
             f"create schema if not exists {relation} "
-            f'options(location="US", default_table_expiration_days={CI_RETENTION.days})'
+            f'options(location="US", '
+            f"default_table_expiration_days={CI_RELATION_EXPIRATION_DAYS})"
         ),
         (
             f"alter schema {relation} "
-            f"set options(default_table_expiration_days={CI_RETENTION.days})"
+            f"set options("
+            f"default_table_expiration_days={CI_RELATION_EXPIRATION_DAYS})"
         ),
     ]:
         client.query(query).result()
-
-    metadata = client.get_dataset(f"{project}.{dataset}")
-    metadata.labels = dict(metadata.labels or {}) | {
-        "environment": "ci",
-        "managed_by": "aej_dbt",
-        CI_LAST_USED_LABEL: (now or datetime.now(UTC)).strftime(CI_LAST_USED_FORMAT),
-    }
-    client.update_dataset(metadata, ["labels"])
-
-
-def set_ci_relation_expirations(
-    pr_number: str,
-    *,
-    client=None,
-    now: datetime | None = None,
-) -> None:
-    client = client or create_bigquery_client()
-    dataset = f"{os.environ['GCP_PROJECT_ID']}.{ci_dataset_name(pr_number)}"
-    expiration = (now or datetime.now(UTC)) + CI_RETENTION
-    for relation in client.list_tables(dataset):
-        table = client.get_table(f"{dataset}.{relation.table_id}")
-        table.expires = expiration
-        client.update_table(table, ["expires"])
-
-
-def delete_ci_dataset(pr_number: str, *, client=None) -> None:
-    client = client or create_bigquery_client()
-    dataset = f"{os.environ['GCP_PROJECT_ID']}.{ci_dataset_name(pr_number)}"
-    client.delete_dataset(dataset, delete_contents=True, not_found_ok=True)
-
-
-def ci_dataset_last_used(dataset) -> datetime | None:
-    label = (dataset.labels or {}).get(CI_LAST_USED_LABEL, "")
-    try:
-        return datetime.strptime(label, CI_LAST_USED_FORMAT).replace(tzinfo=UTC)
-    except ValueError:
-        return dataset.modified or dataset.created
-
-
-def delete_stale_ci_datasets(
-    *,
-    client=None,
-    now: datetime | None = None,
-) -> list[str]:
-    client = client or create_bigquery_client()
-    project = os.environ["GCP_PROJECT_ID"]
-    cutoff = (now or datetime.now(UTC)) - CI_RETENTION
-    deleted = []
-    for item in client.list_datasets(project=project):
-        if not item.dataset_id.startswith("dbt_ci_"):
-            continue
-        pr_number = item.dataset_id.removeprefix("dbt_ci_")
-        if not pr_number.isdigit():
-            continue
-        dataset = client.get_dataset(f"{project}.{item.dataset_id}")
-        last_used = ci_dataset_last_used(dataset)
-        if last_used is None or last_used > cutoff:
-            continue
-        client.delete_dataset(
-            f"{project}.{item.dataset_id}",
-            delete_contents=True,
-            not_found_ok=True,
-        )
-        deleted.append(item.dataset_id)
-    return deleted
 
 
 def create_gcs_client():
@@ -371,41 +305,20 @@ def run_dbt(
     pr_number: str = "",
 ) -> None:
     target = resolve_dbt_target(cmd, target)
-    ci_client = None
-    ci_pr_number = ""
     if target == "ci":
         ci_pr_number = dbt_env(target, pr_number=pr_number)["PR_NUMBER"]
-        ci_client = create_bigquery_client()
-        configure_ci_dataset(ci_pr_number, client=ci_client)
+        configure_ci_dataset(ci_pr_number)
     execute_dbt(
         cmd=cmd,
         target=target,
         dbt_user=dbt_user,
         pr_number=pr_number,
     )
-    if ci_client is not None:
-        set_ci_relation_expirations(ci_pr_number, client=ci_client)
 
 
 @app.function(image=image, secrets=[bigquery_secret], timeout=60 * 60)
 def publish_parquet() -> None:
     execute_parquet_publish()
-
-
-@app.function(image=image, secrets=[bigquery_secret], timeout=10 * 60)
-def cleanup_ci_dataset(pr_number: str) -> None:
-    delete_ci_dataset(pr_number)
-
-
-@app.function(
-    image=image,
-    secrets=[bigquery_secret],
-    timeout=10 * 60,
-    schedule=modal.Cron("30 3 * * *"),
-)
-def scheduled_ci_cleanup() -> None:
-    deleted = delete_stale_ci_datasets()
-    print(f"Deleted {len(deleted)} stale dbt CI datasets: {', '.join(deleted)}")
 
 
 @app.function(
@@ -446,15 +359,9 @@ def dispatch(
     dbt_user: str = "",
     pr_number: str = "",
     publish: bool = False,
-    cleanup_ci: bool = False,
 ) -> None:
-    if publish and cleanup_ci:
-        raise ValueError("publish and cleanup_ci cannot be used together")
     if publish:
         publish_parquet.remote()
-        return
-    if cleanup_ci:
-        cleanup_ci_dataset.remote(pr_number)
         return
 
     run_dbt.remote(
@@ -472,7 +379,6 @@ def main(
     dbt_user: str = "",
     pr_number: str = "",
     publish: bool = False,
-    cleanup_ci: bool = False,
 ) -> None:
     dispatch(
         cmd=cmd,
@@ -480,5 +386,4 @@ def main(
         dbt_user=dbt_user,
         pr_number=pr_number,
         publish=publish,
-        cleanup_ci=cleanup_ci,
     )

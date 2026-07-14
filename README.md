@@ -193,15 +193,13 @@ Pull requests run `Ruff`, `Unit tests`, `dbt parse`, and `dbt build` checks. Pus
 
 The `dbt parse` check installs dbt locally on the GitHub-hosted runner, resolves the locked packages, and parses the project without warehouse credentials. It runs for every pull request, including pull requests from forks.
 
-The `dbt build` check runs project-owned models and their tests in Modal for pull requests whose branch is in this repository. It uses the `ci` target and writes to the pull request's isolated `dbt_ci_<PR number>` dataset. Before each build, the dataset is configured with a 30-day default table and view expiration; after a successful build, every existing relation's expiration is refreshed to 30 days from that run. Pull requests from forks skip this credentialed check because GitHub does not provide repository secrets to fork workflows.
+The `dbt build` check runs project-owned models and their tests in Modal for pull requests whose branch is in this repository. It uses the `ci` target and writes to the pull request's isolated `dbt_ci_<PR number>` dataset. Before each build, the dataset is configured with a 30-day default table and view expiration. BigQuery removes expired relations, while the empty dataset is intentionally retained. Pull requests from forks skip this credentialed check because GitHub does not provide repository secrets to fork workflows.
 
 Model commands should go through `mdbt`, which keeps Modal dispatch, target selection, and package-lock handling in one place. Local shells can use `mdbt` because `.envrc` adds `bin` to `PATH`; GitHub Actions uses the explicit path:
 
 ```bash
 AEJ_DBT_TARGET=ci AEJ_DBT_PR_NUMBER=123 ./bin/mdbt build --select package:this,resource_type:model
 ```
-
-When an in-repository pull request closes, the cleanup workflow deletes its CI dataset and all contained relations. A daily Modal cleanup at 03:30 UTC also deletes strictly named `dbt_ci_<PR number>` datasets that have not been used by a build for 30 days, with dataset metadata providing a fallback age for datasets created before activity labels were added. Cleanup is an application maintenance operation rather than a dbt command, so the close workflow calls the Modal entrypoint directly.
 
 Configure the default-branch ruleset to require the exact check names `Ruff`, `Unit tests`, `dbt parse`, and `dbt build`. Keep the workflow-level dbt trigger unfiltered so required check names are always reported; selection inside the build limits warehouse work to project-owned models.
 
