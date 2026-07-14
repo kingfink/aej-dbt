@@ -74,6 +74,10 @@ models:
   - name: int_email_subscription_events
     description: Subscriber lifecycle events derived from contact state and resubscriptions. A backfilled unsubscribe timestamp represents when the state was first observed, not the precise unsubscribe time.
     columns:
+      - name: subscriber_id
+        description: Stable subscriber key generated from the normalized email address.
+        tests:
+          - not_null
       - name: source
         description: Provider that produced the subscription event.
         tests:
@@ -99,6 +103,14 @@ models:
       - name: event_ts
         tests:
           - not_null
+
+  - name: dates
+    description: Ephemeral UTC date sequence spanning the known email subscription lifecycle through the current date.
+    columns:
+      - name: date_day
+        tests:
+          - not_null
+          - unique
 
   - name: int_email_subscribers
     description: |

@@ -230,7 +230,7 @@ models:
           - not_null
 
   - name: fct_email_subscribers_daily
-    description: One row per UTC date and subscriber from the subscriber's first lifecycle event through the current date, representing the latest known end-of-day Resend subscription state. SendGrid-only subscribers remain unsubscribed, backfilled unsubscribes take effect when first observed, and unsubscribe wins when events share a timestamp.
+    description: One row per UTC date and subscriber from the subscriber's first lifecycle event through the current date, indicating whether the subscriber was subscribed at any point during the date. SendGrid-only subscribers remain unsubscribed, and backfilled unsubscribes take effect when first observed.
     columns:
       - name: email_subscriber_daily_id
         description: Stable surrogate key generated from the date and subscriber.
@@ -250,7 +250,7 @@ models:
                 to: ref("dim_email_subscribers")
                 field: subscriber_id
       - name: is_subscribed
-        description: Whether the subscriber's latest known Resend state at the end of the date is subscribed.
+        description: Whether the subscriber entered the date subscribed or had a Resend subscribe event during the date.
         tests:
           - not_null
           - accepted_values:

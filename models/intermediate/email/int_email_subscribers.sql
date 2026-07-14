@@ -1,7 +1,7 @@
 with
     subscription_summary as (
         select
-            {{ dbt_utils.generate_surrogate_key(["email_address"]) }} as subscriber_id,
+            subscriber_id,
             email_address,
             any_value(resend_contact_id) as resend_contact_id,
             min(
@@ -17,7 +17,7 @@ with
                 if(subscriber_event_type = "unsubscribed", event_ts, null)
             ) as max_unsubscribed_ts
         from {{ ref("int_email_subscription_events") }}
-        group by email_address
+        group by subscriber_id, email_address
     )
 
 select

@@ -67,7 +67,7 @@
 - A SendGrid-only address is not currently subscribed.
 - SendGrid data may contribute historical subscription and engagement context.
 - Build `int_email_subscribers` from the normalized lifecycle in `int_email_subscription_events` rather than independently reconciling provider contact states.
-- When subscription events share a timestamp, use the simplest deterministic business rule: `unsubscribed` takes precedence over `subscribed`. Do not add source, webhook, or backfill precedence without a concrete requirement.
+- For daily subscription state, mark a subscriber as subscribed when they entered the date subscribed or had a subscribe event during the date; a later unsubscribe on the same date does not erase that day's subscription. Do not add source, webhook, or backfill precedence without a concrete requirement.
 - Normalize provider event types upstream through shared logic.
 - Keep source-specific event categories in staging and expose the consolidated category domain in intermediate and mart YAML through `accepted_values` tests.
 - Do not expose `signup_page_url` until ongoing Resend signup attribution is captured reliably; follow-up work is tracked in `kingfink/analytics-engineering-jobs#1437`.
