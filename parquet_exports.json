@@ -2,11 +2,11 @@
   {
     "name": "jobs",
     "dataset": "dbt_prd",
-    "relation": "stg_jobs"
+    "relation": "dim_jobs"
   },
   {
     "name": "organizations",
     "dataset": "dbt_prd",
-    "relation": "stg_organizations"
+    "relation": "dim_organizations"
   }
 ]

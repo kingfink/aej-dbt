@@ -151,12 +151,12 @@ class ParquetPublishingAdapterTest(unittest.TestCase):
                         {
                             "name": "jobs",
                             "dataset": "published_models",
-                            "relation": "stg_jobs",
+                            "relation": "dim_jobs",
                         },
                         {
                             "name": "organizations",
                             "dataset": "published_models",
-                            "relation": "stg_organizations",
+                            "relation": "dim_organizations",
                         },
                     ]
                 )
@@ -168,12 +168,12 @@ class ParquetPublishingAdapterTest(unittest.TestCase):
                     app.ModelExport(
                         name="jobs",
                         dataset="published_models",
-                        relation="stg_jobs",
+                        relation="dim_jobs",
                     ),
                     app.ModelExport(
                         name="organizations",
                         dataset="published_models",
-                        relation="stg_organizations",
+                        relation="dim_organizations",
                     ),
                 ),
             )
@@ -182,14 +182,31 @@ class ParquetPublishingAdapterTest(unittest.TestCase):
         export = app.ModelExport(
             name="jobs",
             dataset="published_models",
-            relation="stg_jobs",
+            relation="dim_jobs",
         )
 
         with patch.dict("os.environ", {"GCP_PROJECT_ID": "configured-project"}):
             self.assertEqual(
                 app.build_export_query(export),
-                "select * from `configured-project.published_models.stg_jobs`",
+                "select * from `configured-project.published_models.dim_jobs`",
             )
+
+    def test_default_exports_publish_site_content_dimensions(self):
+        self.assertEqual(
+            app.load_model_exports(),
+            (
+                app.ModelExport(
+                    name="jobs",
+                    dataset="dbt_prd",
+                    relation="dim_jobs",
+                ),
+                app.ModelExport(
+                    name="organizations",
+                    dataset="dbt_prd",
+                    relation="dim_organizations",
+                ),
+            ),
+        )
 
     def test_upload_parquet_files_uses_fixed_keys_and_no_cache(self):
         client = FakeGCSClient()
