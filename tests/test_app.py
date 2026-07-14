@@ -34,20 +34,6 @@ class FakeGCSClient:
         return self.buckets.setdefault(name, FakeGCSBucket())
 
 
-class FakeBigQueryJob:
-    def result(self):
-        return self
-
-
-class FakeBigQueryClient:
-    def __init__(self):
-        self.queries = []
-
-    def query(self, query):
-        self.queries.append(query)
-        return FakeBigQueryJob()
-
-
 class DbtCommandTest(unittest.TestCase):
     def test_preserves_quoted_args_and_appends_shared_options(self):
         command = app.build_dbt_command(
@@ -122,7 +108,6 @@ class DbtRunTest(unittest.TestCase):
         with (
             patch.dict("os.environ", env, clear=True),
             patch("app.subprocess.run") as run,
-            patch("app.configure_ci_dataset") as configure_ci_dataset,
         ):
             app.run_dbt.local(cmd="debug", target="ci", pr_number="123")
 
@@ -131,7 +116,6 @@ class DbtRunTest(unittest.TestCase):
             check=True,
             env=env | {"PR_NUMBER": "123"},
         )
-        configure_ci_dataset.assert_called_once_with("123")
 
     def test_rejects_missing_dynamic_dataset_suffix(self):
         for target, message in [
@@ -159,28 +143,6 @@ class AppDispatchTest(unittest.TestCase):
 
         publish_parquet.assert_called_once_with()
         run_dbt.assert_not_called()
-
-
-class DbtCiLifecycleTest(unittest.TestCase):
-    def test_configures_default_relation_expiration(self):
-        client = FakeBigQueryClient()
-
-        with patch.dict("os.environ", {"GCP_PROJECT_ID": "configured-project"}):
-            app.configure_ci_dataset("123", client=client)
-
-        self.assertEqual(
-            client.queries,
-            [
-                (
-                    "create schema if not exists `configured-project.dbt_ci_123` "
-                    'options(location="US", default_table_expiration_days=30)'
-                ),
-                (
-                    "alter schema `configured-project.dbt_ci_123` "
-                    "set options(default_table_expiration_days=30)"
-                ),
-            ],
-        )
 
 
 class ParquetPublishingAdapterTest(unittest.TestCase):

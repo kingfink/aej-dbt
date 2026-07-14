@@ -9,8 +9,6 @@ from pathlib import Path
 
 import modal
 
-CI_RELATION_EXPIRATION_DAYS = 30
-
 
 @dataclass(frozen=True)
 class ModelExport:
@@ -94,30 +92,6 @@ def ci_dataset_name(pr_number: str) -> str:
     if not pr_number.isdigit():
         raise ValueError("pr_number must contain only digits")
     return f"dbt_ci_{pr_number}"
-
-
-def configure_ci_dataset(
-    pr_number: str,
-    *,
-    client=None,
-) -> None:
-    client = client or create_bigquery_client()
-    project = os.environ["GCP_PROJECT_ID"]
-    dataset = ci_dataset_name(pr_number)
-    relation = f"`{project}.{dataset}`"
-    for query in [
-        (
-            f"create schema if not exists {relation} "
-            f'options(location="US", '
-            f"default_table_expiration_days={CI_RELATION_EXPIRATION_DAYS})"
-        ),
-        (
-            f"alter schema {relation} "
-            f"set options("
-            f"default_table_expiration_days={CI_RELATION_EXPIRATION_DAYS})"
-        ),
-    ]:
-        client.query(query).result()
 
 
 def create_gcs_client():
@@ -304,10 +278,6 @@ def run_dbt(
     dbt_user: str = "",
     pr_number: str = "",
 ) -> None:
-    target = resolve_dbt_target(cmd, target)
-    if target == "ci":
-        ci_pr_number = dbt_env(target, pr_number=pr_number)["PR_NUMBER"]
-        configure_ci_dataset(ci_pr_number)
     execute_dbt(
         cmd=cmd,
         target=target,
