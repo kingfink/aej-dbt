@@ -9,6 +9,8 @@
 - Use `union all`. If deduplication is required, perform it explicitly afterward with `select distinct`, grouping, or a window function.
 - Put blank lines before and after `union all`.
 - Avoid redundant filters, columns, date derivatives, and intermediate calculations.
+- Add columns only for concrete current requirements; do not add speculative fields because they may be useful downstream.
+- Keep changes local to the model that needs them and preserve existing upstream models when their established contract already supports the new work.
 - Prefer BigQuery-native functions and data types.
 - Prefer `any_value` when any non-null representative value is acceptable.
 - Prefer `min_by` and `max_by` over ordered `array_agg(...)[safe_offset(...)]`.
@@ -65,6 +67,7 @@
 - A SendGrid-only address is not currently subscribed.
 - SendGrid data may contribute historical subscription and engagement context.
 - Build `int_email_subscribers` from the normalized lifecycle in `int_email_subscription_events` rather than independently reconciling provider contact states.
+- When subscription events share a timestamp, use the simplest deterministic business rule: `unsubscribed` takes precedence over `subscribed`. Do not add source, webhook, or backfill precedence without a concrete requirement.
 - Normalize provider event types upstream through shared logic.
 - Keep source-specific event categories in staging and expose the consolidated category domain in intermediate and mart YAML through `accepted_values` tests.
 - Do not expose `signup_page_url` until ongoing Resend signup attribution is captured reliably; follow-up work is tracked in `kingfink/analytics-engineering-jobs#1437`.
