@@ -4,10 +4,14 @@ import shlex
 import subprocess
 import tempfile
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import modal
+
+CI_RETENTION = timedelta(days=30)
+CI_LAST_USED_LABEL = "ci_last_used"
+CI_LAST_USED_FORMAT = "%Y%m%dt%H%M%Sz"
 
 
 @dataclass(frozen=True)
@@ -94,10 +98,92 @@ def ci_dataset_name(pr_number: str) -> str:
     return f"dbt_ci_{pr_number}"
 
 
+def configure_ci_dataset(
+    pr_number: str,
+    *,
+    client=None,
+    now: datetime | None = None,
+) -> None:
+    client = client or create_bigquery_client()
+    project = os.environ["GCP_PROJECT_ID"]
+    dataset = ci_dataset_name(pr_number)
+    relation = f"`{project}.{dataset}`"
+    for query in [
+        (
+            f"create schema if not exists {relation} "
+            f'options(location="US", default_table_expiration_days={CI_RETENTION.days})'
+        ),
+        (
+            f"alter schema {relation} "
+            f"set options(default_table_expiration_days={CI_RETENTION.days})"
+        ),
+    ]:
+        client.query(query).result()
+
+    metadata = client.get_dataset(f"{project}.{dataset}")
+    metadata.labels = dict(metadata.labels or {}) | {
+        "environment": "ci",
+        "managed_by": "aej_dbt",
+        CI_LAST_USED_LABEL: (now or datetime.now(UTC)).strftime(CI_LAST_USED_FORMAT),
+    }
+    client.update_dataset(metadata, ["labels"])
+
+
+def set_ci_relation_expirations(
+    pr_number: str,
+    *,
+    client=None,
+    now: datetime | None = None,
+) -> None:
+    client = client or create_bigquery_client()
+    dataset = f"{os.environ['GCP_PROJECT_ID']}.{ci_dataset_name(pr_number)}"
+    expiration = (now or datetime.now(UTC)) + CI_RETENTION
+    for relation in client.list_tables(dataset):
+        table = client.get_table(f"{dataset}.{relation.table_id}")
+        table.expires = expiration
+        client.update_table(table, ["expires"])
+
+
 def delete_ci_dataset(pr_number: str, *, client=None) -> None:
     client = client or create_bigquery_client()
     dataset = f"{os.environ['GCP_PROJECT_ID']}.{ci_dataset_name(pr_number)}"
     client.delete_dataset(dataset, delete_contents=True, not_found_ok=True)
+
+
+def ci_dataset_last_used(dataset) -> datetime | None:
+    label = (dataset.labels or {}).get(CI_LAST_USED_LABEL, "")
+    try:
+        return datetime.strptime(label, CI_LAST_USED_FORMAT).replace(tzinfo=UTC)
+    except ValueError:
+        return dataset.modified or dataset.created
+
+
+def delete_stale_ci_datasets(
+    *,
+    client=None,
+    now: datetime | None = None,
+) -> list[str]:
+    client = client or create_bigquery_client()
+    project = os.environ["GCP_PROJECT_ID"]
+    cutoff = (now or datetime.now(UTC)) - CI_RETENTION
+    deleted = []
+    for item in client.list_datasets(project=project):
+        if not item.dataset_id.startswith("dbt_ci_"):
+            continue
+        pr_number = item.dataset_id.removeprefix("dbt_ci_")
+        if not pr_number.isdigit():
+            continue
+        dataset = client.get_dataset(f"{project}.{item.dataset_id}")
+        last_used = ci_dataset_last_used(dataset)
+        if last_used is None or last_used > cutoff:
+            continue
+        client.delete_dataset(
+            f"{project}.{item.dataset_id}",
+            delete_contents=True,
+            not_found_ok=True,
+        )
+        deleted.append(item.dataset_id)
+    return deleted
 
 
 def create_gcs_client():
@@ -144,6 +230,14 @@ def dbt_target(args: list[str]) -> str:
     return ""
 
 
+def resolve_dbt_target(cmd: str, target: str = "") -> str:
+    return (
+        dbt_target(shlex.split(cmd))
+        or target
+        or os.environ.get("AEJ_DBT_TARGET", "dev")
+    )
+
+
 def dbt_env(target: str, *, dbt_user: str = "", pr_number: str = "") -> dict[str, str]:
     if target == "dev":
         user = dbt_user or os.environ.get("AEJ_DBT_USER", "")
@@ -165,11 +259,7 @@ def execute_dbt(
     dbt_user: str = "",
     pr_number: str = "",
 ) -> None:
-    target = (
-        dbt_target(shlex.split(cmd))
-        or target
-        or os.environ.get("AEJ_DBT_TARGET", "dev")
-    )
+    target = resolve_dbt_target(cmd, target)
     subprocess.run(
         build_dbt_command(cmd, target=target),
         check=True,
@@ -280,12 +370,21 @@ def run_dbt(
     dbt_user: str = "",
     pr_number: str = "",
 ) -> None:
+    target = resolve_dbt_target(cmd, target)
+    ci_client = None
+    ci_pr_number = ""
+    if target == "ci":
+        ci_pr_number = dbt_env(target, pr_number=pr_number)["PR_NUMBER"]
+        ci_client = create_bigquery_client()
+        configure_ci_dataset(ci_pr_number, client=ci_client)
     execute_dbt(
         cmd=cmd,
         target=target,
         dbt_user=dbt_user,
         pr_number=pr_number,
     )
+    if ci_client is not None:
+        set_ci_relation_expirations(ci_pr_number, client=ci_client)
 
 
 @app.function(image=image, secrets=[bigquery_secret], timeout=60 * 60)
@@ -296,6 +395,17 @@ def publish_parquet() -> None:
 @app.function(image=image, secrets=[bigquery_secret], timeout=10 * 60)
 def cleanup_ci_dataset(pr_number: str) -> None:
     delete_ci_dataset(pr_number)
+
+
+@app.function(
+    image=image,
+    secrets=[bigquery_secret],
+    timeout=10 * 60,
+    schedule=modal.Cron("30 3 * * *"),
+)
+def scheduled_ci_cleanup() -> None:
+    deleted = delete_stale_ci_datasets()
+    print(f"Deleted {len(deleted)} stale dbt CI datasets: {', '.join(deleted)}")
 
 
 @app.function(
