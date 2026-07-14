@@ -230,7 +230,7 @@ models:
           - not_null
 
   - name: fct_email_subscribers_daily
-    description: One row per UTC date and subscriber from the subscriber's first lifecycle event through the current date. Each row represents the latest known end-of-day Resend subscription state; SendGrid-only subscribers remain unsubscribed, and backfilled unsubscribe states take effect on the date first observed rather than asserting a precise historical unsubscribe date. When events share a timestamp, observed webhook state takes precedence over backfilled state, then unsubscribed takes precedence over subscribed.
+    description: One row per UTC date and subscriber from the subscriber's first lifecycle event through the current date, representing the latest known end-of-day Resend subscription state. SendGrid-only subscribers remain unsubscribed, backfilled unsubscribes take effect when first observed, and unsubscribe wins when events share a timestamp.
     columns:
       - name: email_subscriber_daily_id
         description: Stable surrogate key generated from the date and subscriber.
@@ -300,7 +300,3 @@ models:
         description: Number of click events, including repeated, privacy-proxied, and bot-like activity.
         tests:
           - not_null
-      - name: min_non_privacy_or_bot_opened_ts
-        description: Earliest open timestamp not classified as privacy-proxied or bot-like.
-      - name: min_non_privacy_or_bot_clicked_ts
-        description: Earliest click timestamp not classified as privacy-proxied or bot-like.

@@ -20,10 +20,7 @@ with
             e.subscriber_event_type = "subscribed" as is_subscribed,
             row_number() over (
                 partition by d.date_day, d.subscriber_id
-                order by
-                    e.event_ts desc,
-                    e.is_backfill,
-                    e.subscriber_event_type = "unsubscribed" desc
+                order by e.event_ts desc, e.subscriber_event_type = "unsubscribed" desc
             ) as status_event_rank
         from subscriber_dates as d
         left join
