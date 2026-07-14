@@ -28,10 +28,8 @@ models:
         description: Earliest known sent-event timestamp for the message.
 
   - name: dim_email_subscribers
-    description: >-
-      One row per normalized email address with a subscription lifecycle event.
-      Historical SendGrid resubscriptions are retained, while current subscription
-      state is authoritative only for Resend contacts.
+    description: |
+      One row per normalized email address with a subscription lifecycle event. The current `is_subscribed` value reflects Resend contact state; SendGrid events contribute historical context but do not establish current subscription status.
     columns:
       - name: subscriber_id
         description: Stable surrogate key generated from the normalized email address.
@@ -58,10 +56,8 @@ models:
       - name: max_unsubscribed_ts
         description: Most recent known unsubscribe timestamp.
   - name: fct_email_events
-    description: >-
-      One row per provider email event and recipient across SendGrid and Resend,
-      including synthetic sent events from the Resend backfill when no matching
-      webhook event exists.
+    description: |
+      One row per provider email event and recipient across SendGrid and Resend, including synthetic sent events from the Resend backfill when no matching webhook event exists.
     columns:
       - name: email_event_id
         description: Stable identifier for the provider event and recipient.
@@ -104,9 +100,7 @@ models:
         tests:
           - not_null
       - name: email_event_details
-        description: >-
-          Native JSON object containing populated event-specific details such as
-          link_url, ip_address, user_agent, is_backfill,
-          is_privacy_or_bot_like, and privacy_or_bot_reason.
+        description: |
+          Native JSON object containing populated event-specific details such as link_url, ip_address, user_agent, is_backfill, is_privacy_or_bot_like, and privacy_or_bot_reason.
         tests:
           - not_null

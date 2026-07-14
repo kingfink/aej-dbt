@@ -101,9 +101,8 @@ models:
           - not_null
 
   - name: int_email_subscribers
-    description: >-
-      One row per email address with a subscription lifecycle event. Current
-      subscription state is authoritative only for Resend contacts.
+    description: |
+      One row per email address with a subscription lifecycle event. The current `is_subscribed` value reflects Resend contact state; SendGrid events contribute historical context but do not establish current subscription status.
     columns:
       - name: subscriber_id
         tests:

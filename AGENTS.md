@@ -80,6 +80,11 @@
 - Do not hard-wrap Markdown prose or list items; keep each paragraph or bullet on a single physical line.
 - Apply this convention to all new and edited Markdown files.
 
+## YAML
+
+- Do not hard-wrap YAML descriptions; keep each paragraph on a single physical line.
+- Use `|` rather than `>-` for block-style descriptions.
+
 ## Tooling
 
 - Use connector tools first for GitHub, Netlify, and similar discovery, status, logs, metadata, and comments.
