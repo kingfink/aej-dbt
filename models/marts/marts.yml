@@ -3,10 +3,6 @@ version: 2
 models:
   - name: dim_jobs
     description: One row per organization and job slug for every job published on Analytics Engineering Jobs.
-    config:
-      access: public
-      contract:
-        enforced: true
     columns:
       - name: job_id
         data_type: string
@@ -88,10 +84,6 @@ models:
 
   - name: dim_organizations
     description: One row per organization published on Analytics Engineering Jobs.
-    config:
-      access: public
-      contract:
-        enforced: true
     columns:
       - name: organization_id
         data_type: string
@@ -151,9 +143,6 @@ models:
   - name: dim_email_messages
     description: One row per provider email message across SendGrid and Resend.
     config:
-      access: public
-      contract:
-        enforced: true
       group: email
     columns:
       - name: email_id
@@ -194,9 +183,6 @@ models:
     description: |
       One row per normalized email address with a subscription lifecycle event. The current `is_subscribed` value reflects Resend contact state; SendGrid events contribute historical context but do not establish current subscription status.
     config:
-      access: public
-      contract:
-        enforced: true
       group: email
     columns:
       - name: subscriber_id
@@ -243,9 +229,6 @@ models:
     description: |
       One row per provider email event and recipient across SendGrid and Resend, including synthetic sent events from the Resend backfill when no matching webhook event exists.
     config:
-      access: public
-      contract:
-        enforced: true
       group: email
     columns:
       - name: email_event_id
@@ -338,9 +321,6 @@ models:
   - name: fct_email_subscribers_daily
     description: One row per UTC date and subscriber from the subscriber's first lifecycle event through the current date, indicating whether the subscriber was subscribed at any point during the date. SendGrid state is used through the Resend contact-import date; Resend state is authoritative beginning the following date because the migration imported both subscribed and unsubscribed contact state. Backfilled unsubscribes represent the state known at migration rather than a precise historical unsubscribe date.
     config:
-      access: public
-      contract:
-        enforced: true
       group: email
     columns:
       - name: email_subscriber_daily_id
@@ -386,9 +366,6 @@ models:
   - name: fct_email_subscriber_messages
     description: One row per email message and known subscriber, with repeated opens and clicks retained in event counts. Event recipients without a known subscription lifecycle remain in `fct_email_events` but are outside this subscriber-level fact. All message-level metrics use min_sent_ts as their time basis.
     config:
-      access: public
-      contract:
-        enforced: true
       group: email
     columns:
       - name: email_subscriber_message_id

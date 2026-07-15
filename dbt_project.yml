@@ -23,7 +23,13 @@ models:
       +materialized: view
     intermediate:
       +materialized: view
+      email:
+        +access: private
+        +group: email
     marts:
+      +access: public
+      +contract:
+        enforced: true
       +materialized: table
   ga4:
     staging:

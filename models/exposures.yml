@@ -1,19 +1,79 @@
 version: 2
 
 exposures:
-  - name: steep
-    label: Steep
-    type: dashboard
+  - name: steep_jobs
+    label: "Steep module: Jobs"
+    type: analysis
     maturity: low
     url: https://app.steep.app/
-    description: Self-service metrics and dashboards built from the public Analytics Engineering Jobs marts.
+    description: Steep semantic model module for published job attributes.
+    depends_on:
+      - ref("dim_jobs")
+    owner:
+      name: Tim Finkel
+
+  - name: steep_organizations
+    label: "Steep module: Organizations"
+    type: analysis
+    maturity: low
+    url: https://app.steep.app/
+    description: Steep semantic model module for published organization attributes.
+    depends_on:
+      - ref("dim_organizations")
+    owner:
+      name: Tim Finkel
+
+  - name: steep_email_messages
+    label: "Steep module: Email messages"
+    type: analysis
+    maturity: low
+    url: https://app.steep.app/
+    description: Steep semantic model module for email message attributes.
     depends_on:
       - ref("dim_email_messages")
+    owner:
+      name: Tim Finkel
+
+  - name: steep_email_subscribers
+    label: "Steep module: Email subscribers"
+    type: analysis
+    maturity: low
+    url: https://app.steep.app/
+    description: Steep semantic model module for email subscriber attributes and current state.
+    depends_on:
       - ref("dim_email_subscribers")
-      - ref("dim_jobs")
-      - ref("dim_organizations")
+    owner:
+      name: Tim Finkel
+
+  - name: steep_email_events
+    label: "Steep module: Email events"
+    type: analysis
+    maturity: low
+    url: https://app.steep.app/
+    description: Steep semantic model module for recipient-level email events.
+    depends_on:
       - ref("fct_email_events")
+    owner:
+      name: Tim Finkel
+
+  - name: steep_email_subscriber_messages
+    label: "Steep module: Email subscriber messages"
+    type: analysis
+    maturity: low
+    url: https://app.steep.app/
+    description: Steep semantic model module for subscriber-level message engagement.
+    depends_on:
       - ref("fct_email_subscriber_messages")
+    owner:
+      name: Tim Finkel
+
+  - name: steep_email_subscribers_daily
+    label: "Steep module: Email subscribers daily"
+    type: analysis
+    maturity: low
+    url: https://app.steep.app/
+    description: Steep semantic model module for daily email subscription state.
+    depends_on:
       - ref("fct_email_subscribers_daily")
     owner:
       name: Tim Finkel

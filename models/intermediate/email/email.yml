@@ -3,9 +3,6 @@ version: 2
 models:
   - name: int_email_message_events
     description: Email message event spine across SendGrid and Resend.
-    config:
-      access: private
-      group: email
     columns:
       - name: email_event_id
         tests:
@@ -58,9 +55,6 @@ models:
                   - privacy_or_image_proxy
   - name: int_email_messages
     description: One row per provider email message across SendGrid and Resend.
-    config:
-      access: private
-      group: email
     columns:
       - name: email_id
         tests:
@@ -80,9 +74,6 @@ models:
 
   - name: int_email_subscription_events
     description: Subscriber lifecycle events derived from contact state and resubscriptions. A backfilled unsubscribe timestamp represents when the state was first observed, not the precise unsubscribe time.
-    config:
-      access: private
-      group: email
     columns:
       - name: subscriber_id
         description: Stable subscriber key generated from the normalized email address.
@@ -117,9 +108,6 @@ models:
 
   - name: dates
     description: Ephemeral UTC date sequence spanning the known email subscription lifecycle through the current date.
-    config:
-      access: private
-      group: email
     columns:
       - name: date_day
         tests:
@@ -129,9 +117,6 @@ models:
   - name: int_email_subscribers
     description: |
       One row per email address with a subscription lifecycle event. The current `is_subscribed` value reflects Resend contact state; SendGrid events contribute historical context but do not establish current subscription status.
-    config:
-      access: private
-      group: email
     columns:
       - name: subscriber_id
         tests:
