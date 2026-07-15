@@ -1,0 +1,82 @@
+version: 2
+
+exposures:
+  - name: steep_dim_email_messages
+    label: "Steep module: Email Messages"
+    type: analysis
+    maturity: low
+    description: One row per provider email message across Resend and SendGrid.
+    depends_on:
+      - ref("dim_email_messages")
+      - ref("fct_email_events")
+      - ref("fct_email_subscriber_messages")
+    owner:
+      name: Tim Finkel
+
+  - name: steep_dim_email_subscribers
+    label: "Steep module: Email Subscribers"
+    type: analysis
+    maturity: low
+    description: One row per known subscriber, with current subscription state and lifecycle timestamps. Email addresses are intentionally excluded from Steep.
+    depends_on:
+      - ref("dim_email_subscribers")
+      - ref("fct_email_events")
+      - ref("fct_email_subscriber_messages")
+      - ref("fct_email_subscribers_daily")
+    owner:
+      name: Tim Finkel
+
+  - name: steep_fct_email_events
+    label: "Steep module: Email Activity"
+    type: analysis
+    maturity: low
+    description: One row per provider email event and recipient across Resend and SendGrid.
+    depends_on:
+      - ref("dim_email_messages")
+      - ref("dim_email_subscribers")
+      - ref("fct_email_events")
+    owner:
+      name: Tim Finkel
+
+  - name: steep_fct_email_subscriber_messages
+    label: "Steep module: Email Subscriber Messages"
+    type: analysis
+    maturity: low
+    description: One row per email message and known subscriber, with delivery and engagement outcomes aggregated from provider events.
+    depends_on:
+      - ref("dim_email_messages")
+      - ref("fct_email_subscriber_messages")
+    owner:
+      name: Tim Finkel
+
+  - name: steep_fct_email_subscribers_daily
+    label: "Steep module: Daily Email Subscribers"
+    type: analysis
+    maturity: low
+    description: One row per UTC date and known subscriber, indicating whether the subscriber was subscribed at any point during the date.
+    depends_on:
+      - ref("fct_email_subscribers_daily")
+    owner:
+      name: Tim Finkel
+
+  - name: public_jobs_parquet
+    label: "Public Parquet: Jobs"
+    type: application
+    maturity: high
+    url: https://storage.googleapis.com/aej-data/jobs.parquet
+    description: Public downloadable Parquet interface containing the contracted jobs dimension.
+    depends_on:
+      - ref("dim_jobs")
+    owner:
+      name: Tim Finkel
+
+  - name: public_organizations_parquet
+    label: "Public Parquet: Organizations"
+    type: application
+    maturity: high
+    url: https://storage.googleapis.com/aej-data/organizations.parquet
+    description: Public downloadable Parquet interface containing the contracted organizations dimension.
+    depends_on:
+      - ref("dim_organizations")
+    owner:
+      name: Tim Finkel

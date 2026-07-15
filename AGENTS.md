@@ -49,6 +49,16 @@
 - Keep site content, email, web engagement, Search Console, and future domains logically separate unless a model intentionally combines them.
 - Add or update a dedicated section in this file when a domain develops its own durable conventions.
 
+## Model governance and public interfaces
+
+- Assign models to domain groups. Provider or source staging models and intermediate models should be private within their group; marts should be public.
+- Prefer `dbt_project.yml` directory hierarchy for shared access, group, materialization, and contract configuration. Keep per-model group configuration only where mixed-domain models share a directory.
+- Enforce contracts on marts and declare a `data_type` for every mart column. Retain uniqueness as a data test rather than a BigQuery contract constraint.
+- Treat public Parquet files as public interfaces. The backing mart contract defines the file schema when the publisher selects every model column; update the contract, exposure, export configuration, and README together when the interface changes.
+- Declare exposures only for real consumers. Verify Steep exposures against the live workspace and the `aej-steep` repository, and include the module's base relation plus models referenced by join paths, dimensions, or cohorts. Do not invent consumer URLs.
+- Use real ingestion timestamps for source freshness and tune thresholds to observed delivery cadence. Do not use event occurrence time as load time.
+- Use focused dbt unit tests for nontrivial state or lifecycle logic and reusable generic tests for invariants that apply across models.
+
 ## Email modeling
 
 - Use canonical email identifiers:

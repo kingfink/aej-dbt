@@ -41,6 +41,7 @@ models:
       - name: email_address
         tests:
           - not_null
+          - is_normalized_email_address
       - name: event_ts
         tests:
           - not_null
@@ -92,6 +93,7 @@ models:
       - name: email_address
         tests:
           - not_null
+          - is_normalized_email_address
       - name: subscriber_event_type
         tests:
           - not_null
@@ -124,6 +126,28 @@ models:
         tests:
           - not_null
           - unique
+          - is_normalized_email_address
       - name: is_subscribed
         tests:
           - not_null
+
+unit_tests:
+  - name: int_email_subscribers_handles_provider_lifecycle
+    description: SendGrid history does not establish current status, while the latest Resend lifecycle event does.
+    model: int_email_subscribers
+    given:
+      - input: ref("int_email_subscription_events")
+        rows:
+          - {subscriber_id: sendgrid_only, source: sendgrid, resend_contact_id: null, email_address: sendgrid@example.com, subscriber_event_type: subscribed, event_ts: "2026-01-01 00:00:00+00"}
+          - {subscriber_id: active_resend, source: resend, resend_contact_id: contact_active, email_address: active@example.com, subscriber_event_type: subscribed, event_ts: "2026-01-02 00:00:00+00"}
+          - {subscriber_id: unsubscribed, source: resend, resend_contact_id: contact_unsubscribed, email_address: unsubscribed@example.com, subscriber_event_type: subscribed, event_ts: "2026-01-03 00:00:00+00"}
+          - {subscriber_id: unsubscribed, source: resend, resend_contact_id: contact_unsubscribed, email_address: unsubscribed@example.com, subscriber_event_type: unsubscribed, event_ts: "2026-01-04 00:00:00+00"}
+          - {subscriber_id: resubscribed, source: resend, resend_contact_id: contact_resubscribed, email_address: resubscribed@example.com, subscriber_event_type: subscribed, event_ts: "2026-01-05 00:00:00+00"}
+          - {subscriber_id: resubscribed, source: resend, resend_contact_id: contact_resubscribed, email_address: resubscribed@example.com, subscriber_event_type: unsubscribed, event_ts: "2026-01-06 00:00:00+00"}
+          - {subscriber_id: resubscribed, source: resend, resend_contact_id: contact_resubscribed, email_address: resubscribed@example.com, subscriber_event_type: subscribed, event_ts: "2026-01-07 00:00:00+00"}
+    expect:
+      rows:
+        - {subscriber_id: sendgrid_only, email_address: sendgrid@example.com, resend_contact_id: null, is_subscribed: false, min_subscribed_ts: "2026-01-01 00:00:00+00", max_subscribed_ts: "2026-01-01 00:00:00+00", min_unsubscribed_ts: null, max_unsubscribed_ts: null}
+        - {subscriber_id: active_resend, email_address: active@example.com, resend_contact_id: contact_active, is_subscribed: true, min_subscribed_ts: "2026-01-02 00:00:00+00", max_subscribed_ts: "2026-01-02 00:00:00+00", min_unsubscribed_ts: null, max_unsubscribed_ts: null}
+        - {subscriber_id: unsubscribed, email_address: unsubscribed@example.com, resend_contact_id: contact_unsubscribed, is_subscribed: false, min_subscribed_ts: "2026-01-03 00:00:00+00", max_subscribed_ts: "2026-01-03 00:00:00+00", min_unsubscribed_ts: "2026-01-04 00:00:00+00", max_unsubscribed_ts: "2026-01-04 00:00:00+00"}
+        - {subscriber_id: resubscribed, email_address: resubscribed@example.com, resend_contact_id: contact_resubscribed, is_subscribed: true, min_subscribed_ts: "2026-01-05 00:00:00+00", max_subscribed_ts: "2026-01-07 00:00:00+00", min_unsubscribed_ts: "2026-01-06 00:00:00+00", max_unsubscribed_ts: "2026-01-06 00:00:00+00"}
