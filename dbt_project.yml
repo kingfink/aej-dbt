@@ -21,6 +21,12 @@ models:
   aej:
     staging:
       +materialized: view
+      resend:
+        +access: private
+        +group: email
+      sendgrid:
+        +access: private
+        +group: email
     intermediate:
       +materialized: view
       email:
