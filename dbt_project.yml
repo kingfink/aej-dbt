@@ -21,6 +21,9 @@ models:
   aej:
     staging:
       +materialized: view
+      analytics_engineering_jobs:
+        +access: private
+        +group: site_content
       resend:
         +access: private
         +group: email

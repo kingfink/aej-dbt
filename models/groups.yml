@@ -4,3 +4,7 @@ groups:
   - name: email
     owner:
       name: Tim Finkel
+
+  - name: site_content
+    owner:
+      name: Tim Finkel

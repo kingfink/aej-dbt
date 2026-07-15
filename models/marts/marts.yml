@@ -3,6 +3,8 @@ version: 2
 models:
   - name: dim_jobs
     description: One row per organization and job slug for every job published on Analytics Engineering Jobs.
+    config:
+      group: site_content
     columns:
       - name: job_id
         data_type: string
@@ -84,6 +86,8 @@ models:
 
   - name: dim_organizations
     description: One row per organization published on Analytics Engineering Jobs.
+    config:
+      group: site_content
     columns:
       - name: organization_id
         data_type: string
