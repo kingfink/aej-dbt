@@ -8,6 +8,8 @@ exposures:
     description: One row per provider email message across Resend and SendGrid.
     depends_on:
       - ref("dim_email_messages")
+      - ref("fct_email_events")
+      - ref("fct_email_subscriber_messages")
     owner:
       name: Tim Finkel
 
@@ -18,6 +20,9 @@ exposures:
     description: One row per known subscriber, with current subscription state and lifecycle timestamps. Email addresses are intentionally excluded from Steep.
     depends_on:
       - ref("dim_email_subscribers")
+      - ref("fct_email_events")
+      - ref("fct_email_subscriber_messages")
+      - ref("fct_email_subscribers_daily")
     owner:
       name: Tim Finkel
 
@@ -27,6 +32,8 @@ exposures:
     maturity: low
     description: One row per provider email event and recipient across Resend and SendGrid.
     depends_on:
+      - ref("dim_email_messages")
+      - ref("dim_email_subscribers")
       - ref("fct_email_events")
     owner:
       name: Tim Finkel
@@ -37,6 +44,7 @@ exposures:
     maturity: low
     description: One row per email message and known subscriber, with delivery and engagement outcomes aggregated from provider events.
     depends_on:
+      - ref("dim_email_messages")
       - ref("fct_email_subscriber_messages")
     owner:
       name: Tim Finkel
