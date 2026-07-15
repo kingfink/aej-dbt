@@ -118,11 +118,11 @@ gcloud storage buckets update gs://<bucket-name> \
   --cors-file=<path-to-cors-json>
 ```
 
-The files are then available at:
+The deployed public files are available at:
 
 ```text
-https://storage.googleapis.com/<bucket-name>/jobs.parquet
-https://storage.googleapis.com/<bucket-name>/organizations.parquet
+https://storage.googleapis.com/aej-data/jobs.parquet
+https://storage.googleapis.com/aej-data/organizations.parquet
 ```
 
 ## Run
@@ -156,6 +156,8 @@ organizations.parquet
 ```
 
 Configure the output names, datasets, and relations in `parquet_exports.json`.
+
+The exported relations have enforced dbt contracts. Because publishing selects every model column, the contracted column names and data types in `models/marts/marts.yml` define the public Parquet schemas. Treat changes to those schemas as public interface changes.
 
 Both objects use `Cache-Control: no-cache`. Because they are updated separately, clients may briefly see files from different publishes.
 

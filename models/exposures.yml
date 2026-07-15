@@ -58,3 +58,25 @@ exposures:
       - ref("fct_email_subscribers_daily")
     owner:
       name: Tim Finkel
+
+  - name: public_jobs_parquet
+    label: "Public Parquet: Jobs"
+    type: application
+    maturity: high
+    url: https://storage.googleapis.com/aej-data/jobs.parquet
+    description: Public downloadable Parquet interface containing the contracted jobs dimension.
+    depends_on:
+      - ref("dim_jobs")
+    owner:
+      name: Tim Finkel
+
+  - name: public_organizations_parquet
+    label: "Public Parquet: Organizations"
+    type: application
+    maturity: high
+    url: https://storage.googleapis.com/aej-data/organizations.parquet
+    description: Public downloadable Parquet interface containing the contracted organizations dimension.
+    depends_on:
+      - ref("dim_organizations")
+    owner:
+      name: Tim Finkel
