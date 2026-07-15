@@ -24,6 +24,7 @@ models:
         description: Lowercased recipient email address.
         tests:
           - not_null
+          - is_normalized_email_address
       - name: event_type
         description: Normalized SendGrid event type.
         tests:

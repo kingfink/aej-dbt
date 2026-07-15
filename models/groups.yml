@@ -1,0 +1,6 @@
+version: 2
+
+groups:
+  - name: email
+    owner:
+      name: Tim Finkel

@@ -4,11 +4,11 @@ sources:
   - name: analytics_engineering_jobs
     schema: dlt_content
     loader: dlt
-    # loaded_at_field: null
-
-    # freshness:
-    #   warn_after: { count: 24, period: hour }
-    #   error_after: { count: 48, period: hour }
+    config:
+      loaded_at_field: timestamp_millis(cast(cast(_dlt_load_id as float64) * 1000 as int64))
+      freshness:
+        warn_after: {count: 24, period: hour}
+        error_after: {count: 48, period: hour}
 
     tables:
       - name: jobs

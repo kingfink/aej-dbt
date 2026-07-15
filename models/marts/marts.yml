@@ -3,14 +3,24 @@ version: 2
 models:
   - name: dim_jobs
     description: One row per organization and job slug for every job published on Analytics Engineering Jobs.
+    config:
+      access: public
+      contract:
+        enforced: true
     columns:
       - name: job_id
+        data_type: string
         description: Stable surrogate key generated from the organization and job slugs.
+        constraints:
+          - type: not_null
         tests:
           - not_null
           - unique
       - name: organization_id
+        data_type: string
         description: Organization dimension key for the organization that published the job.
+        constraints:
+          - type: not_null
         tests:
           - not_null
           - relationships:
@@ -18,14 +28,21 @@ models:
                 to: ref("dim_organizations")
                 field: organization_id
       - name: organization_slug
+        data_type: string
         description: Slug identifying the organization that published the job.
+        constraints:
+          - type: not_null
         tests:
           - not_null
       - name: job_slug
+        data_type: string
         description: Slug identifying the job within its organization.
+        constraints:
+          - type: not_null
         tests:
           - not_null
       - name: is_active
+        data_type: bool
         description: Whether the job is currently active on the site.
         tests:
           - accepted_values:
@@ -35,6 +52,7 @@ models:
                   - false
                 quote: false
       - name: is_featured
+        data_type: bool
         description: Whether the job is featured on the site.
         tests:
           - accepted_values:
@@ -44,36 +62,55 @@ models:
                   - false
                 quote: false
       - name: date_added
+        data_type: date
         description: Date the job was added to the site.
       - name: date_removed
+        data_type: date
         description: Date the job was removed from the site, when applicable.
       - name: title
+        data_type: string
         description: Published job title.
       - name: posting_url
+        data_type: string
         description: URL of the external job posting.
       - name: description
+        data_type: string
         description: Published job description.
       - name: location
+        data_type: string
         description: Published job location.
       - name: salary
+        data_type: string
         description: Published salary information.
       - name: tags
+        data_type: array<string>
         description: Tags assigned to the job.
 
   - name: dim_organizations
     description: One row per organization published on Analytics Engineering Jobs.
+    config:
+      access: public
+      contract:
+        enforced: true
     columns:
       - name: organization_id
+        data_type: string
         description: Stable surrogate key generated from the organization slug.
+        constraints:
+          - type: not_null
         tests:
           - not_null
           - unique
       - name: organization_slug
+        data_type: string
         description: Slug identifying the organization.
+        constraints:
+          - type: not_null
         tests:
           - not_null
           - unique
       - name: is_active
+        data_type: bool
         description: Whether the organization is currently active on the site.
         tests:
           - accepted_values:
@@ -83,6 +120,7 @@ models:
                   - false
                 quote: false
       - name: is_featured
+        data_type: bool
         description: Whether the organization is featured on the site.
         tests:
           - accepted_values:
@@ -92,28 +130,45 @@ models:
                   - false
                 quote: false
       - name: name
+        data_type: string
         description: Published organization name.
       - name: description
+        data_type: string
         description: Published organization description.
       - name: description_short
+        data_type: string
         description: Short published organization description.
       - name: organization_url
+        data_type: string
         description: Published organization website URL.
       - name: headcount
+        data_type: string
         description: Published or inferred organization headcount range.
       - name: location
+        data_type: string
         description: Published or inferred organization location.
 
   - name: dim_email_messages
     description: One row per provider email message across SendGrid and Resend.
+    config:
+      access: public
+      contract:
+        enforced: true
+      group: email
     columns:
       - name: email_id
+        data_type: string
         description: Stable surrogate key generated from the source and source email ID.
+        constraints:
+          - type: not_null
         tests:
           - not_null
           - unique
       - name: source
+        data_type: string
         description: Email provider that sent the message.
+        constraints:
+          - type: not_null
         tests:
           - not_null
           - accepted_values:
@@ -122,53 +177,87 @@ models:
                   - resend
                   - sendgrid
       - name: source_email_id
+        data_type: string
         description: Message identifier supplied by the email provider.
+        constraints:
+          - type: not_null
         tests:
           - not_null
       - name: subject
+        data_type: string
         description: Email subject line when supplied by the provider.
       - name: sent_ts
+        data_type: timestamp
         description: Earliest known sent-event timestamp for the message.
 
   - name: dim_email_subscribers
     description: |
       One row per normalized email address with a subscription lifecycle event. The current `is_subscribed` value reflects Resend contact state; SendGrid events contribute historical context but do not establish current subscription status.
+    config:
+      access: public
+      contract:
+        enforced: true
+      group: email
     columns:
       - name: subscriber_id
+        data_type: string
         description: Stable surrogate key generated from the normalized email address.
+        constraints:
+          - type: not_null
         tests:
           - not_null
           - unique
       - name: email_address
+        data_type: string
         description: Lowercased and trimmed subscriber email address.
+        constraints:
+          - type: not_null
         tests:
           - not_null
           - unique
+          - is_normalized_email_address
       - name: resend_contact_id
+        data_type: string
         description: Resend contact identifier when the subscriber is known to Resend.
       - name: is_subscribed
+        data_type: bool
         description: Whether the address is currently a subscribed Resend contact.
+        constraints:
+          - type: not_null
         tests:
           - not_null
       - name: min_subscribed_ts
+        data_type: timestamp
         description: Earliest known subscription timestamp.
       - name: max_subscribed_ts
+        data_type: timestamp
         description: Most recent known subscription or resubscription timestamp.
       - name: min_unsubscribed_ts
+        data_type: timestamp
         description: Earliest timestamp at which an unsubscribed state is known; snapshot-derived values use the backfill timestamp and do not identify the precise unsubscribe time.
       - name: max_unsubscribed_ts
+        data_type: timestamp
         description: Most recent timestamp at which an unsubscribed state is known; snapshot-derived values use the backfill timestamp and do not identify the precise unsubscribe time.
 
   - name: fct_email_events
     description: |
       One row per provider email event and recipient across SendGrid and Resend, including synthetic sent events from the Resend backfill when no matching webhook event exists.
+    config:
+      access: public
+      contract:
+        enforced: true
+      group: email
     columns:
       - name: email_event_id
+        data_type: string
         description: Stable identifier for the provider event and recipient.
+        constraints:
+          - type: not_null
         tests:
           - not_null
           - unique
       - name: subscriber_id
+        data_type: string
         description: Subscriber dimension key when the event recipient has a known subscription lifecycle.
         tests:
           - relationships:
@@ -176,7 +265,10 @@ models:
                 to: ref("dim_email_subscribers")
                 field: subscriber_id
       - name: email_id
+        data_type: string
         description: Message dimension key for the event.
+        constraints:
+          - type: not_null
         tests:
           - not_null
           - relationships:
@@ -184,7 +276,10 @@ models:
                 to: ref("dim_email_messages")
                 field: email_id
       - name: event_type
+        data_type: string
         description: Provider-independent event type such as sent, delivered, opened, or clicked.
+        constraints:
+          - type: not_null
         tests:
           - not_null
           - accepted_values:
@@ -199,11 +294,17 @@ models:
                   - sent
                   - suppressed
       - name: event_ts
+        data_type: timestamp
         description: Timestamp when the event occurred, in UTC.
+        constraints:
+          - type: not_null
         tests:
           - not_null
       - name: is_engagement
+        data_type: bool
         description: Whether the event is an open or click. Privacy-proxied and bot-like activity remains included.
+        constraints:
+          - type: not_null
         tests:
           - not_null
           - accepted_values:
@@ -213,7 +314,10 @@ models:
                   - false
                 quote: false
       - name: is_privacy_or_bot_like
+        data_type: bool
         description: Whether the event details classify the open or click as privacy-proxied or bot-like.
+        constraints:
+          - type: not_null
         tests:
           - not_null
           - accepted_values:
@@ -223,25 +327,42 @@ models:
                   - false
                 quote: false
       - name: email_event_details
+        data_type: json
         description: |
           Native JSON object containing populated event-specific details such as link_url, ip_address, user_agent, is_backfill, is_privacy_or_bot_like, and privacy_or_bot_reason.
+        constraints:
+          - type: not_null
         tests:
           - not_null
 
   - name: fct_email_subscribers_daily
     description: One row per UTC date and subscriber from the subscriber's first lifecycle event through the current date, indicating whether the subscriber was subscribed at any point during the date. SendGrid state is used through the Resend contact-import date; Resend state is authoritative beginning the following date because the migration imported both subscribed and unsubscribed contact state. Backfilled unsubscribes represent the state known at migration rather than a precise historical unsubscribe date.
+    config:
+      access: public
+      contract:
+        enforced: true
+      group: email
     columns:
       - name: email_subscriber_daily_id
+        data_type: string
         description: Stable surrogate key generated from the date and subscriber.
+        constraints:
+          - type: not_null
         tests:
           - not_null
           - unique
       - name: date_day
+        data_type: date
         description: UTC date of the daily subscription state.
+        constraints:
+          - type: not_null
         tests:
           - not_null
       - name: subscriber_id
+        data_type: string
         description: Subscriber dimension key.
+        constraints:
+          - type: not_null
         tests:
           - not_null
           - relationships:
@@ -249,7 +370,10 @@ models:
                 to: ref("dim_email_subscribers")
                 field: subscriber_id
       - name: is_subscribed
+        data_type: bool
         description: Whether the subscriber entered the date subscribed or had a Resend subscribe event during the date.
+        constraints:
+          - type: not_null
         tests:
           - not_null
           - accepted_values:
@@ -261,14 +385,25 @@ models:
 
   - name: fct_email_subscriber_messages
     description: One row per email message and known subscriber, with repeated opens and clicks retained in event counts. Event recipients without a known subscription lifecycle remain in `fct_email_events` but are outside this subscriber-level fact. All message-level metrics use min_sent_ts as their time basis.
+    config:
+      access: public
+      contract:
+        enforced: true
+      group: email
     columns:
       - name: email_subscriber_message_id
+        data_type: string
         description: Stable surrogate key generated from the email and subscriber keys.
+        constraints:
+          - type: not_null
         tests:
           - not_null
           - unique
       - name: email_id
+        data_type: string
         description: Email message dimension key.
+        constraints:
+          - type: not_null
         tests:
           - not_null
           - relationships:
@@ -276,7 +411,10 @@ models:
                 to: ref("dim_email_messages")
                 field: email_id
       - name: subscriber_id
+        data_type: string
         description: Subscriber dimension key.
+        constraints:
+          - type: not_null
         tests:
           - not_null
           - relationships:
@@ -284,18 +422,28 @@ models:
                 to: ref("dim_email_subscribers")
                 field: subscriber_id
       - name: min_sent_ts
+        data_type: timestamp
         description: Earliest sent-event timestamp for the message and subscriber; the time basis for all message-level metrics.
       - name: min_delivered_ts
+        data_type: timestamp
         description: Earliest delivered-event timestamp for the message and subscriber.
       - name: min_opened_ts
+        data_type: timestamp
         description: Earliest open-event timestamp, including privacy-proxied and bot-like activity.
       - name: min_clicked_ts
+        data_type: timestamp
         description: Earliest click-event timestamp, including privacy-proxied and bot-like activity.
       - name: n_events_opened
+        data_type: int64
         description: Number of open events, including repeated, privacy-proxied, and bot-like activity.
+        constraints:
+          - type: not_null
         tests:
           - not_null
       - name: n_events_clicked
+        data_type: int64
         description: Number of click events, including repeated, privacy-proxied, and bot-like activity.
+        constraints:
+          - type: not_null
         tests:
           - not_null

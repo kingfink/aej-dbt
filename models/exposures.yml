@@ -1,0 +1,19 @@
+version: 2
+
+exposures:
+  - name: steep
+    label: Steep
+    type: dashboard
+    maturity: low
+    url: https://app.steep.app/
+    description: Self-service metrics and dashboards built from the public Analytics Engineering Jobs marts.
+    depends_on:
+      - ref("dim_email_messages")
+      - ref("dim_email_subscribers")
+      - ref("dim_jobs")
+      - ref("dim_organizations")
+      - ref("fct_email_events")
+      - ref("fct_email_subscriber_messages")
+      - ref("fct_email_subscribers_daily")
+    owner:
+      name: Tim Finkel
