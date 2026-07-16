@@ -273,6 +273,43 @@ class ScheduledProductionSyncTest(unittest.TestCase):
         )
         self.assertEqual(state, {})
 
+    def test_build_failure_retries_failed_nodes_then_publishes(self):
+        env = {"HEALTHCHECKS_PING_URL": "https://hc-ping.com/check-id"}
+        events = []
+        dbt_error = subprocess.CalledProcessError(1, ["dbt", "build"])
+
+        def flaky_dbt(**kwargs):
+            events.append(("dbt", kwargs))
+            if kwargs["cmd"] == "build":
+                raise dbt_error
+
+        with (
+            patch.dict("os.environ", env, clear=True),
+            patch("app.state", {}),
+            patch("app.should_full_refresh", return_value=False),
+            patch(
+                "app.ping_healthcheck",
+                side_effect=lambda url, signal="": events.append(("ping", signal)),
+            ),
+            patch("app.execute_dbt", side_effect=flaky_dbt),
+            patch(
+                "app.execute_parquet_publish",
+                side_effect=lambda: events.append(("publish",)),
+            ),
+        ):
+            app.scheduled_production_sync.local()
+
+        self.assertEqual(
+            events,
+            [
+                ("ping", "start"),
+                ("dbt", {"cmd": "build", "target": "prd"}),
+                ("dbt", {"cmd": "retry", "target": "prd"}),
+                ("publish",),
+                ("ping", ""),
+            ],
+        )
+
     def test_full_refresh_run_claims_the_day_and_passes_flag(self):
         env = {"HEALTHCHECKS_PING_URL": "https://hc-ping.com/check-id"}
         state = {"last_full_refresh": "2026-06-07"}

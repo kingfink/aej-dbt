@@ -4,5 +4,10 @@ set -euo pipefail
 install_dir="${1:-/usr/local/bin}"
 export SHELL="${SHELL:-/bin/bash}"
 
+# Pin an exact version so the Modal image, CI, and devcontainers all run the
+# same dbt Fusion; channels like "stable" get frozen into cached image layers
+# at whatever version was current, making prod behavior unreproducible.
+version="2.0.0-preview.199"
+
 curl -fsSL https://public.cdn.getdbt.com/fs/install/install.sh \
-  | sh -s -- --version stable --to "$install_dir"
+  | sh -s -- --version "$version" --to "$install_dir"

@@ -168,6 +168,19 @@ def execute_dbt(
     )
 
 
+def execute_dbt_build_with_retry(cmd: str, target: str) -> None:
+    """Run a dbt build, retrying failed and skipped nodes once on failure.
+
+    The BigQuery driver occasionally fails single models on transient API
+    errors (duplicate-job 409s, not-found 404s right after a table replace),
+    so one `dbt retry` pass absorbs those without rebuilding healthy models.
+    """
+    try:
+        execute_dbt(cmd=cmd, target=target)
+    except subprocess.CalledProcessError:
+        execute_dbt(cmd="retry", target=target)
+
+
 def ping_healthcheck(ping_url: str, signal: str = "") -> None:
     url = ping_url.rstrip("/")
     if signal:
@@ -301,7 +314,7 @@ def scheduled_production_sync() -> None:
         state["last_full_refresh"] = now.date().isoformat()
     ping_healthcheck(ping_url, "start")
     try:
-        execute_dbt(
+        execute_dbt_build_with_retry(
             cmd="build --full-refresh" if full_refresh else "build",
             target="prd",
         )
