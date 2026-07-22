@@ -178,7 +178,7 @@ models:
                   - webflow
       - name: form_name
         data_type: string
-        description: Lowercase, hyphenated source form name.
+        description: Canonical form name, with deprecated Webflow variants consolidated under newsletter.
         constraints:
           - type: not_null
         tests:
@@ -186,10 +186,8 @@ models:
           - accepted_values:
               arguments:
                 values:
-                  - email-form
                   - job-apply-capture
                   - newsletter
-                  - newsletter-signup
                   - offer-review
                   - resume-review
       - name: subscriber_id

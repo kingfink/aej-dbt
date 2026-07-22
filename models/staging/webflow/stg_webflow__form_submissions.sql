@@ -3,7 +3,7 @@ select
     as form_submission_id,
     event_id as source_form_submission_id,
     'webflow' as source,
-    trim(regexp_replace(lower(trim(form_name)), r'[^a-z0-9]+', '-')) as form_name,
+    'newsletter' as form_name,
     {{ normalize_email_address("data") }} as email_address,
     cast(null as string) as job_slug,
     cast(null as string) as organization_slug,

@@ -3,7 +3,7 @@ select
     as form_submission_id,
     submission_id as source_form_submission_id,
     'netlify' as source,
-    lower(trim(form_name)) as form_name,
+    form_name,
     {{ normalize_email_address("json_value(form_data, '$.email')") }} as email_address,
     nullif(json_value(form_data, '$.job_slug'), '') as job_slug,
     nullif(json_value(form_data, '$.org_slug'), '') as organization_slug,
