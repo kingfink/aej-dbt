@@ -1,0 +1,51 @@
+version: 2
+
+sources:
+  - name: webflow
+    database: analytics-engineering-jobs
+    schema: webflow
+    loader: Webflow webhook
+    tables:
+      - name: webhooks_form_submits
+
+models:
+  - name: stg_webflow__form_submissions
+    description: Legacy Webflow form submissions normalized to one row per source event.
+    columns:
+      - name: form_submission_id
+        tests:
+          - not_null
+          - unique
+      - name: source_form_submission_id
+        tests:
+          - not_null
+          - unique
+      - name: source
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - webflow
+      - name: form_name
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - email-form
+                  - newsletter-signup
+      - name: email_address
+        tests:
+          - not_null
+          - is_normalized_email_address
+      - name: posthog_distinct_id
+        description: Always null because legacy Webflow submissions predate consent-aware PostHog linkage.
+      - name: posthog_session_id
+        description: Always null because legacy Webflow submissions predate consent-aware PostHog linkage.
+      - name: form_submission_details
+        tests:
+          - not_null
+      - name: submitted_ts
+        tests:
+          - not_null
