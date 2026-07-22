@@ -144,6 +144,105 @@ models:
         data_type: string
         description: Published or inferred organization location.
 
+  - name: fct_form_submissions
+    description: One row per legacy Webflow or current Netlify form submission, linked to known subscribers and site-content dimensions when matching records exist.
+    config:
+      group: web_engagement
+    columns:
+      - name: form_submission_id
+        data_type: string
+        description: Stable surrogate key generated from the source and source submission identifier.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+          - unique
+      - name: source_form_submission_id
+        data_type: string
+        description: Submission identifier supplied by the source platform.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+      - name: source
+        data_type: string
+        description: Platform that collected the form submission.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - netlify
+                  - webflow
+      - name: form_name
+        data_type: string
+        description: Canonical form name, with deprecated Webflow variants consolidated under newsletter.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - job-apply-capture
+                  - newsletter
+                  - offer-review
+                  - resume-review
+      - name: subscriber_id
+        data_type: string
+        description: Subscriber dimension key when the submitted address has a known email subscription lifecycle.
+        tests:
+          - relationships:
+              arguments:
+                to: ref("dim_email_subscribers")
+                field: subscriber_id
+      - name: job_id
+        data_type: string
+        description: Job dimension key for a job-apply capture submission with matching job context.
+        tests:
+          - relationships:
+              arguments:
+                to: ref("dim_jobs")
+                field: job_id
+      - name: organization_id
+        data_type: string
+        description: Organization dimension key when the submission contains matching organization context.
+        tests:
+          - relationships:
+              arguments:
+                to: ref("dim_organizations")
+                field: organization_id
+      - name: email_address
+        data_type: string
+        description: Lowercased and trimmed submitted email address.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+          - is_normalized_email_address
+      - name: posthog_distinct_id
+        data_type: string
+        description: Anonymous PostHog browser identifier when the visitor explicitly enabled PostHog analytics, retained as a nullable join key to behavioral events.
+      - name: posthog_session_id
+        data_type: string
+        description: PostHog session identifier when the visitor explicitly enabled PostHog analytics, retained as a nullable join key to behavioral events.
+      - name: form_submission_details
+        data_type: json
+        description: Native JSON object containing populated analytics context not represented by a dimension key, currently job title and outbound job URL.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+      - name: submitted_ts
+        data_type: timestamp
+        description: Timestamp when the source received the form submission.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+
   - name: dim_email_messages
     description: One row per provider email message across SendGrid and Resend.
     config:

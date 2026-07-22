@@ -1,0 +1,61 @@
+version: 2
+
+sources:
+  - name: netlify
+    database: analytics-engineering-jobs
+    schema: netlify
+    loader: dlt Netlify Forms API
+    config:
+      loaded_at_field: loaded_ts
+      freshness:
+        warn_after: {count: 12, period: hour}
+        error_after: {count: 24, period: hour}
+    tables:
+      - name: form_submissions
+
+models:
+  - name: stg_netlify__form_submissions
+    description: Netlify form submissions normalized to one row per source submission. Submitted email and apply context are retained; operational metadata and uploaded-file URLs remain in the raw source.
+    columns:
+      - name: form_submission_id
+        tests:
+          - not_null
+          - unique
+      - name: source_form_submission_id
+        tests:
+          - not_null
+          - unique
+      - name: source
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - netlify
+      - name: form_name
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - job-apply-capture
+                  - newsletter
+                  - offer-review
+                  - resume-review
+      - name: email_address
+        tests:
+          - not_null
+          - is_normalized_email_address
+      - name: posthog_distinct_id
+        description: Anonymous PostHog browser identifier captured only when the visitor explicitly enabled PostHog analytics.
+      - name: posthog_session_id
+        description: PostHog session identifier captured only when the visitor explicitly enabled PostHog analytics.
+      - name: form_submission_details
+        tests:
+          - not_null
+      - name: submitted_ts
+        tests:
+          - not_null
+      - name: loaded_ts
+        tests:
+          - not_null

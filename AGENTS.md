@@ -51,6 +51,7 @@
 
 ## Model governance and public interfaces
 
+- Keep source extraction and raw loading out of this repository. Upstream ingestion belongs in source-specific or shared ingestion systems such as `aej-dlt`; this repository owns transformation plus the currently coupled Parquet publication step.
 - Assign models to domain groups. Provider or source staging models and intermediate models should be private within their group; marts should be public.
 - Prefer `dbt_project.yml` directory hierarchy for shared access, group, materialization, and contract configuration. Keep per-model group configuration only where mixed-domain models share a directory.
 - Enforce contracts on marts and declare a `data_type` for every mart column. Retain uniqueness as a data test rather than a BigQuery contract constraint.
@@ -89,6 +90,15 @@
 
 - Treat jobs and organizations as site-content entities rather than engagement events.
 - Keep site-content models separate from email and future behavioral, web engagement, and search datasets unless a downstream model intentionally combines those domains.
+
+## Web engagement modeling
+
+- Netlify Forms is the authoritative source for current form submissions and submitted email addresses; Webflow form submissions are legacy history.
+- PostHog is the behavioral source for form impressions, skips, closes, and submit events, but it does not contain the submitted email address.
+- Treat PostHog distinct and session identifiers on form submissions as nullable, consent-gated join keys. Do not require them or use them to discard submissions from visitors without PostHog consent.
+- Keep one row per source form submission in `fct_form_submissions`, with source-native submission IDs retained as business keys and one shared surrogate key generated in staging.
+- Link form submissions to known subscribers, jobs, and organizations with left joins. Retain unmatched submissions rather than discarding identity or context.
+- Keep unnecessary sensitive or operational fields such as IP addresses, user agents, and uploaded-file URLs out of marts.
 
 ## Documentation and validation
 

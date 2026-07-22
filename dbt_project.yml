@@ -30,6 +30,12 @@ models:
       sendgrid:
         +access: private
         +group: email
+      netlify:
+        +access: private
+        +group: web_engagement
+      webflow:
+        +access: private
+        +group: web_engagement
     intermediate:
       +materialized: view
       email:
