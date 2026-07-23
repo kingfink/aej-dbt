@@ -23,6 +23,7 @@ exposures:
       - ref("fct_email_events")
       - ref("fct_email_subscriber_messages")
       - ref("fct_email_subscribers_daily")
+      - ref("fct_form_submissions")
     owner:
       name: Tim Finkel
 
@@ -56,6 +57,41 @@ exposures:
     description: One row per UTC date and known subscriber, indicating whether the subscriber was subscribed at any point during the date.
     depends_on:
       - ref("fct_email_subscribers_daily")
+    owner:
+      name: Tim Finkel
+
+  - name: steep_dim_jobs
+    label: "Steep module: Jobs"
+    type: analysis
+    maturity: low
+    description: One row per organization and job slug for every job published on Analytics Engineering Jobs.
+    depends_on:
+      - ref("dim_jobs")
+      - ref("fct_form_submissions")
+    owner:
+      name: Tim Finkel
+
+  - name: steep_dim_organizations
+    label: "Steep module: Organizations"
+    type: analysis
+    maturity: low
+    description: One row per organization published on Analytics Engineering Jobs.
+    depends_on:
+      - ref("dim_organizations")
+      - ref("fct_form_submissions")
+    owner:
+      name: Tim Finkel
+
+  - name: steep_fct_form_submissions
+    label: "Steep module: Form Submissions"
+    type: analysis
+    maturity: low
+    description: One row per legacy Webflow or current Netlify form submission, linked to known subscribers, jobs, and organizations when matching records exist.
+    depends_on:
+      - ref("dim_email_subscribers")
+      - ref("dim_jobs")
+      - ref("dim_organizations")
+      - ref("fct_form_submissions")
     owner:
       name: Tim Finkel
 
