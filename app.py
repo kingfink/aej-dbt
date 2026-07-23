@@ -182,11 +182,17 @@ def execute_dbt_build_with_retry(cmd: str, target: str) -> None:
 
 
 def ping_healthcheck(ping_url: str, signal: str = "") -> None:
+    """Report run state to healthchecks.io.
+
+    Never raises. A monitoring outage must not become a pipeline outage, so
+    every failure path here is reported and swallowed.
+    """
     url = ping_url.rstrip("/")
     if signal:
         url = f"{url}/{signal}"
+    label = signal or "success"
     try:
-        subprocess.run(
+        result = subprocess.run(
             [
                 "curl",
                 "--fail",
@@ -199,9 +205,15 @@ def ping_healthcheck(ping_url: str, signal: str = "") -> None:
                 url,
             ],
             check=False,
+            # The ping URL embeds a write capability token, so curl's stderr
+            # is captured rather than inherited by the Modal task log.
+            capture_output=True,
         )
-    except OSError as error:
-        print(f"Healthchecks.io ping failed: {error}")
+    except Exception as error:
+        print(f"Healthchecks.io {label} ping failed: {error}")
+        return
+    if result.returncode != 0:
+        print(f"Healthchecks.io {label} ping failed: curl exit {result.returncode}")
 
 
 app = modal.App("aej-dbt")

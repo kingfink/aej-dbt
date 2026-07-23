@@ -408,5 +408,59 @@ class ScheduledProductionSyncTest(unittest.TestCase):
         )
 
 
+def completed_curl(returncode):
+    return subprocess.CompletedProcess(
+        args=["curl"], returncode=returncode, stdout=b"", stderr=b""
+    )
+
+
+class PingHealthcheckTest(unittest.TestCase):
+    ping_url = "https://hc-ping.com/11111111-2222-3333-4444-555555555555"
+
+    def test_success_ping_targets_the_base_url(self):
+        with patch("app.subprocess.run", return_value=completed_curl(0)) as run:
+            app.ping_healthcheck(self.ping_url)
+
+        self.assertEqual(run.call_args.args[0][-1], self.ping_url)
+
+    def test_signal_is_appended_as_a_path(self):
+        with patch("app.subprocess.run", return_value=completed_curl(0)) as run:
+            app.ping_healthcheck(self.ping_url, "start")
+
+        self.assertEqual(run.call_args.args[0][-1], f"{self.ping_url}/start")
+
+    def test_trailing_slash_does_not_double_up(self):
+        with patch("app.subprocess.run", return_value=completed_curl(0)) as run:
+            app.ping_healthcheck(f"{self.ping_url}/", "fail")
+
+        self.assertEqual(run.call_args.args[0][-1], f"{self.ping_url}/fail")
+
+    def test_curl_output_is_captured_so_the_url_never_reaches_logs(self):
+        with patch("app.subprocess.run", return_value=completed_curl(0)) as run:
+            app.ping_healthcheck(self.ping_url, "start")
+
+        self.assertTrue(run.call_args.kwargs["capture_output"])
+
+    def test_non_zero_curl_exit_is_reported_without_raising(self):
+        with (
+            patch("app.subprocess.run", return_value=completed_curl(7)),
+            patch("builtins.print") as report,
+        ):
+            app.ping_healthcheck(self.ping_url, "start")
+
+        message = report.call_args.args[0]
+        self.assertIn("start", message)
+        self.assertNotIn("11111111-2222-3333-4444-555555555555", message)
+
+    def test_unexpected_errors_are_swallowed(self):
+        with (
+            patch("app.subprocess.run", side_effect=RuntimeError("boom")),
+            patch("builtins.print") as report,
+        ):
+            app.ping_healthcheck(self.ping_url)
+
+        self.assertIn("boom", report.call_args.args[0])
+
+
 if __name__ == "__main__":
     unittest.main()
