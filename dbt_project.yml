@@ -33,6 +33,9 @@ models:
       netlify:
         +access: private
         +group: web_engagement
+      posthog:
+        +access: private
+        +group: web_engagement
       webflow:
         +access: private
         +group: web_engagement

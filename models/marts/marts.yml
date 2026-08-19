@@ -243,6 +243,172 @@ models:
         tests:
           - not_null
 
+  - name: fct_web_events
+    description: |
+      One row per PostHog behavioral event on the production site. Events are attributed to a job and organization when the event carries job context, either as event properties or as a job page path. Page views are only captured for visitors who consented to analytics, so counts are a floor rather than total traffic. History begins 2025-12-22, and apply clicks begin 2026-04-20.
+    config:
+      group: web_engagement
+    columns:
+      - name: event_id
+        data_type: string
+        description: Stable surrogate key generated from the source and the source event ID.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+          - unique
+      - name: source_event_id
+        data_type: string
+        description: Event identifier supplied by the behavioral analytics provider.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+          - unique
+      - name: source
+        data_type: string
+        description: Behavioral analytics provider that captured the event.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - posthog
+      - name: event_type
+        data_type: string
+        description: |
+          Provider-independent event type. `apply_click` fires on the outbound application link itself and is independent of what follows in the apply email-capture flow.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - apply_click
+                  - apply_modal_close
+                  - apply_modal_shown
+                  - apply_modal_skip
+                  - apply_modal_submit
+                  - page_leave
+                  - page_view
+                  - rageclick
+      - name: event_ts
+        data_type: timestamp
+        description: Timestamp when the event occurred, in UTC.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+      - name: visitor_id
+        data_type: string
+        description: |
+          Anonymous device identifier for the visitor. Person profiles are disabled, so a visitor is not reconciled across devices or browsers and repeat visitors are undercounted.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+      - name: session_id
+        data_type: string
+        description: Session identifier the event belongs to.
+      - name: page_path
+        data_type: string
+        description: Path of the page the event occurred on.
+      - name: job_id
+        data_type: string
+        description: Job dimension key when the event carries job context.
+        tests:
+          - relationships:
+              arguments:
+                to: ref("dim_jobs")
+                field: job_id
+      - name: organization_id
+        data_type: string
+        description: Organization dimension key when the event carries organization context.
+        tests:
+          - relationships:
+              arguments:
+                to: ref("dim_organizations")
+                field: organization_id
+      - name: event_details
+        data_type: json
+        description: |
+          Native JSON object containing populated event-specific details such as outbound_url, link_text, and click_method.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+
+  - name: dim_email_campaigns
+    description: |
+      One row per email campaign, where a campaign is the batch of messages sharing a source, subject, and campaign date. Transactional and test sends are campaigns too; `is_test` separates the test sends and the subject separates the weekly newsletter from transactional mail.
+    config:
+      group: email
+    columns:
+      - name: email_campaign_id
+        data_type: string
+        description: Stable surrogate key generated from the source, subject, and campaign date.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+          - unique
+      - name: source
+        data_type: string
+        description: Email provider that sent the campaign.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - resend
+                  - sendgrid
+      - name: campaign_name
+        data_type: string
+        description: |
+          Campaign name taken from the `utm_campaign` parameter on the campaign's tracked links, such as `weekly_jobs_2026_08_11`. Null for campaigns whose links carry no campaign parameter and for campaigns that were never clicked.
+      - name: subject
+        data_type: string
+        description: Campaign subject line when supplied by the provider. Always null for SendGrid, which did not record subjects.
+      - name: campaign_date
+        data_type: date
+        description: |
+          UTC date the campaign was sent. Anchored to the earliest event on the campaign's messages when the provider never delivered a sent event.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+      - name: first_sent_ts
+        data_type: timestamp
+        description: Earliest sent-event timestamp across the campaign's messages.
+      - name: last_sent_ts
+        data_type: timestamp
+        description: Latest sent-event timestamp across the campaign's messages.
+      - name: message_count
+        data_type: int64
+        description: Number of provider messages in the campaign, which is one per recipient send.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+      - name: is_test
+        data_type: bool
+        description: Whether the campaign is a test send, identified by a bracketed TEST subject prefix.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - true
+                  - false
+                quote: false
+
   - name: dim_email_messages
     description: One row per provider email message across SendGrid and Resend.
     config:
@@ -256,6 +422,17 @@ models:
         tests:
           - not_null
           - unique
+      - name: email_campaign_id
+        data_type: string
+        description: Campaign dimension key for the campaign the message was part of.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref("dim_email_campaigns")
+                field: email_campaign_id
       - name: source
         data_type: string
         description: Email provider that sent the message.
@@ -420,6 +597,109 @@ models:
           - type: not_null
         tests:
           - not_null
+
+  - name: fct_email_link_clicks
+    description: |
+      One row per email click event with a tracked link, normalized for link-level analysis. The link URL has its query string removed, so campaign parameters and per-contact unsubscribe tokens collapse into one row per destination. Job attribution resolves only for the current job URL scheme; legacy SendGrid-era job links used a flat single-segment path and stay unattributed.
+    config:
+      group: email
+    columns:
+      - name: email_event_id
+        data_type: string
+        description: Stable identifier for the provider click event and recipient, shared with `fct_email_events`.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+          - unique
+      - name: email_campaign_id
+        data_type: string
+        description: Campaign dimension key for the campaign whose message was clicked.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref("dim_email_campaigns")
+                field: email_campaign_id
+      - name: email_id
+        data_type: string
+        description: Message dimension key for the message that was clicked.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref("dim_email_messages")
+                field: email_id
+      - name: subscriber_id
+        data_type: string
+        description: Subscriber dimension key when the recipient has a known subscription lifecycle.
+        tests:
+          - relationships:
+              arguments:
+                to: ref("dim_email_subscribers")
+                field: subscriber_id
+      - name: link_url
+        data_type: string
+        description: Clicked destination URL with the query string and fragment removed.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+      - name: link_type
+        data_type: string
+        description: |
+          Destination category. `job_page` is a job posting on the site, `site` is any other page on the site, `unsubscribe` is a provider-hosted unsubscribe page, and `external` is any other destination.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - external
+                  - job_page
+                  - site
+                  - unsubscribe
+      - name: job_id
+        data_type: string
+        description: Job dimension key when the link points at a job posting under the current job URL scheme.
+        tests:
+          - relationships:
+              arguments:
+                to: ref("dim_jobs")
+                field: job_id
+      - name: organization_id
+        data_type: string
+        description: Organization dimension key when the link carries organization context.
+        tests:
+          - relationships:
+              arguments:
+                to: ref("dim_organizations")
+                field: organization_id
+      - name: clicked_ts
+        data_type: timestamp
+        description: Timestamp when the click occurred, in UTC.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+      - name: is_privacy_or_bot_like
+        data_type: bool
+        description: Whether the event details classify the click as privacy-proxied or bot-like. Clicks are retained either way.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - true
+                  - false
+                quote: false
 
   - name: fct_email_subscribers_daily
     description: One row per UTC date and subscriber from the subscriber's first lifecycle event through the current date, indicating whether the subscriber was subscribed at any point during the date. SendGrid state is used through the Resend contact-import date; Resend state is authoritative beginning the following date because the migration imported both subscribed and unsubscribed contact state. Backfilled unsubscribes represent the state known at migration rather than a precise historical unsubscribe date.
