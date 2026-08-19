@@ -245,7 +245,7 @@ models:
 
   - name: fct_web_events
     description: |
-      One row per PostHog behavioral event on the production site. Events are attributed to a job and organization when the event carries job context, either as event properties or as a job page path. Page views are only captured for visitors who consented to analytics, so counts are a floor rather than total traffic. History begins 2025-12-22, and apply clicks begin 2026-04-20.
+      One row per job page view and outbound apply click captured on the production site. `stg_posthog__events` retains every captured event type, so widening this fact is a one-line change. Events are attributed to a job and organization when the event carries job context, either as event properties or as a job page path. Page views are only captured for visitors who consented to analytics, so counts are a floor rather than total traffic. History begins 2025-12-22, and apply clicks begin 2026-04-20.
     config:
       group: web_engagement
     columns:
@@ -288,13 +288,7 @@ models:
               arguments:
                 values:
                   - apply_click
-                  - apply_modal_close
-                  - apply_modal_shown
-                  - apply_modal_skip
-                  - apply_modal_submit
-                  - page_leave
                   - page_view
-                  - rageclick
       - name: event_ts
         data_type: timestamp
         description: Timestamp when the event occurred, in UTC.
@@ -507,7 +501,7 @@ models:
 
   - name: fct_email_events
     description: |
-      One row per provider email event and recipient across SendGrid and Resend, including synthetic sent events from the Resend backfill when no matching webhook event exists.
+      One row per provider email event and recipient across SendGrid and Resend, including synthetic sent events from the Resend backfill when no matching webhook event exists. Click events additionally carry a normalized link destination, so link-level analysis needs no separate fact.
     config:
       group: email
     columns:
@@ -563,6 +557,31 @@ models:
           - type: not_null
         tests:
           - not_null
+      - name: link_url
+        data_type: string
+        description: |
+          Clicked destination URL with the query string and fragment removed, so campaign parameters and per-contact unsubscribe tokens collapse to one value per destination. Null for events that are not clicks.
+      - name: link_type
+        data_type: string
+        description: |
+          Destination category of the clicked link. `job_page` is a job posting on the site, `site` is any other page on the site, `unsubscribe` is a provider-hosted unsubscribe page, and `external` is any other destination. Null for events that are not clicks.
+        tests:
+          - accepted_values:
+              arguments:
+                values:
+                  - external
+                  - job_page
+                  - site
+                  - unsubscribe
+      - name: job_id
+        data_type: string
+        description: |
+          Job dimension key when the clicked link points at a job posting under the current job URL scheme. Legacy SendGrid-era job links used a flat single-segment path and stay unresolved.
+        tests:
+          - relationships:
+              arguments:
+                to: ref("dim_jobs")
+                field: job_id
       - name: is_engagement
         data_type: bool
         description: Whether the event is an open or click. Privacy-proxied and bot-like activity remains included.
@@ -592,114 +611,11 @@ models:
       - name: email_event_details
         data_type: json
         description: |
-          Native JSON object containing populated event-specific details such as link_url, ip_address, user_agent, is_backfill, is_privacy_or_bot_like, and privacy_or_bot_reason.
+          Native JSON object containing populated event-specific details such as ip_address, user_agent, is_backfill, is_privacy_or_bot_like, and privacy_or_bot_reason. The clicked link is promoted to the `link_url`, `link_type`, and `job_id` columns.
         constraints:
           - type: not_null
         tests:
           - not_null
-
-  - name: fct_email_link_clicks
-    description: |
-      One row per email click event with a tracked link, normalized for link-level analysis. The link URL has its query string removed, so campaign parameters and per-contact unsubscribe tokens collapse into one row per destination. Job attribution resolves only for the current job URL scheme; legacy SendGrid-era job links used a flat single-segment path and stay unattributed.
-    config:
-      group: email
-    columns:
-      - name: email_event_id
-        data_type: string
-        description: Stable identifier for the provider click event and recipient, shared with `fct_email_events`.
-        constraints:
-          - type: not_null
-        tests:
-          - not_null
-          - unique
-      - name: email_campaign_id
-        data_type: string
-        description: Campaign dimension key for the campaign whose message was clicked.
-        constraints:
-          - type: not_null
-        tests:
-          - not_null
-          - relationships:
-              arguments:
-                to: ref("dim_email_campaigns")
-                field: email_campaign_id
-      - name: email_id
-        data_type: string
-        description: Message dimension key for the message that was clicked.
-        constraints:
-          - type: not_null
-        tests:
-          - not_null
-          - relationships:
-              arguments:
-                to: ref("dim_email_messages")
-                field: email_id
-      - name: subscriber_id
-        data_type: string
-        description: Subscriber dimension key when the recipient has a known subscription lifecycle.
-        tests:
-          - relationships:
-              arguments:
-                to: ref("dim_email_subscribers")
-                field: subscriber_id
-      - name: link_url
-        data_type: string
-        description: Clicked destination URL with the query string and fragment removed.
-        constraints:
-          - type: not_null
-        tests:
-          - not_null
-      - name: link_type
-        data_type: string
-        description: |
-          Destination category. `job_page` is a job posting on the site, `site` is any other page on the site, `unsubscribe` is a provider-hosted unsubscribe page, and `external` is any other destination.
-        constraints:
-          - type: not_null
-        tests:
-          - not_null
-          - accepted_values:
-              arguments:
-                values:
-                  - external
-                  - job_page
-                  - site
-                  - unsubscribe
-      - name: job_id
-        data_type: string
-        description: Job dimension key when the link points at a job posting under the current job URL scheme.
-        tests:
-          - relationships:
-              arguments:
-                to: ref("dim_jobs")
-                field: job_id
-      - name: organization_id
-        data_type: string
-        description: Organization dimension key when the link carries organization context.
-        tests:
-          - relationships:
-              arguments:
-                to: ref("dim_organizations")
-                field: organization_id
-      - name: clicked_ts
-        data_type: timestamp
-        description: Timestamp when the click occurred, in UTC.
-        constraints:
-          - type: not_null
-        tests:
-          - not_null
-      - name: is_privacy_or_bot_like
-        data_type: bool
-        description: Whether the event details classify the click as privacy-proxied or bot-like. Clicks are retained either way.
-        constraints:
-          - type: not_null
-        tests:
-          - not_null
-          - accepted_values:
-              arguments:
-                values:
-                  - true
-                  - false
-                quote: false
 
   - name: fct_email_subscribers_daily
     description: One row per UTC date and subscriber from the subscriber's first lifecycle event through the current date, indicating whether the subscriber was subscribed at any point during the date. SendGrid state is used through the Resend contact-import date; Resend state is authoritative beginning the following date because the migration imported both subscribed and unsubscribed contact state. Backfilled unsubscribes represent the state known at migration rather than a precise historical unsubscribe date.

@@ -6,19 +6,11 @@ with
             source_email_id,
             any_value(subject) as subject,
             min(if(event_type = "sent", event_ts, null)) as sent_ts,
-            min(event_ts) as first_event_ts
+            date(
+                coalesce(min(if(event_type = "sent", event_ts, null)), min(event_ts))
+            ) as campaign_date
         from {{ ref("int_email_message_events") }}
         group by 1, 2, 3
-    ),
-    campaign_dates as (
-        select
-            email_id,
-            source,
-            source_email_id,
-            subject,
-            sent_ts,
-            date(coalesce(sent_ts, first_event_ts)) as campaign_date
-        from messages
     )
 
 select
@@ -30,4 +22,4 @@ select
     subject,
     campaign_date,
     sent_ts
-from campaign_dates
+from messages

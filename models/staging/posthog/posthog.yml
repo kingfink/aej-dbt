@@ -58,7 +58,7 @@ models:
         description: Timestamp when the event occurred, in UTC.
         tests:
           - not_null
-      - name: distinct_id
+      - name: visitor_id
         description: PostHog device identifier for the visitor. Person profiles are disabled, so this stays anonymous and is not reconciled across devices.
         tests:
           - not_null

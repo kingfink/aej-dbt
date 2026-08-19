@@ -11,7 +11,7 @@ select
         else ltrim(event, "$")
     end as event_type,
     timestamp as event_ts,
-    distinct_id,
+    distinct_id as visitor_id,
     json_value(properties, '$."$session_id"') as session_id,
     json_value(properties, '$."$pathname"') as page_path,
     coalesce(

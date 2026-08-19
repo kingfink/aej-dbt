@@ -4,7 +4,7 @@ select
     e.source,
     e.event_type,
     e.event_ts,
-    e.distinct_id as visitor_id,
+    e.visitor_id,
     e.session_id,
     e.page_path,
     j.job_id,
@@ -26,14 +26,4 @@ left join
     and e.job_slug = j.job_slug
 left join
     {{ ref("dim_organizations") }} as o on e.organization_slug = o.organization_slug
-where
-    e.event_type in (
-        "apply_click",
-        "apply_modal_close",
-        "apply_modal_shown",
-        "apply_modal_skip",
-        "apply_modal_submit",
-        "page_leave",
-        "page_view",
-        "rageclick"
-    )
+where e.event_type in ("apply_click", "page_view")
