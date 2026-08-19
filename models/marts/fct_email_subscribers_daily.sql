@@ -6,7 +6,7 @@ with
     subscriber_lifetimes as (
         select subscriber_id, min(date(event_ts)) as first_event_date
         from {{ ref("int_email_subscription_events") }}
-        group by subscriber_id
+        group by 1
     ),
     subscriber_dates as (
         select d.date_day, s.subscriber_id
@@ -43,7 +43,7 @@ with
             on d.subscriber_id = e.subscriber_id
             and date(e.event_ts) <= d.date_day
             and e.source = if(d.date_day < c.resend_start_date, "sendgrid", "resend")
-        group by d.date_day, d.subscriber_id
+        group by 1, 2
     )
 
 select

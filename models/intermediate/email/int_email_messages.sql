@@ -9,7 +9,7 @@ with
             min(if(event_type = "sent", event_ts, null)) as first_sent_ts,
             min(event_ts) as first_event_ts
         from {{ ref("int_email_message_events") }}
-        group by email_id, source, source_email_id
+        group by 1, 2, 3
     )
 
 select

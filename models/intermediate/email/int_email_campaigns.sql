@@ -8,4 +8,4 @@ select
     count(*) as message_count,
     coalesce(starts_with(m.subject, "[TEST]"), false) as is_test
 from {{ ref("int_email_messages") }} as m
-group by m.email_campaign_id, m.source, m.subject, campaign_date
+group by 1, 2, 4, 5
