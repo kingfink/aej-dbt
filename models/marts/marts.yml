@@ -378,10 +378,7 @@ models:
           - not_null
       - name: first_sent_ts
         data_type: timestamp
-        description: Earliest sent-event timestamp across the campaign's messages.
-      - name: last_sent_ts
-        data_type: timestamp
-        description: Latest sent-event timestamp across the campaign's messages.
+        description: Earliest sent-event timestamp across the campaign's messages. Null when no message in the campaign ever recorded a sent event.
       - name: message_count
         data_type: int64
         description: Number of provider messages in the campaign, which is one per recipient send.

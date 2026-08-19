@@ -53,6 +53,25 @@ models:
                 values:
                   - bot_or_security_scanner
                   - privacy_or_image_proxy
+      - name: link_url
+        description: |
+          Clicked destination URL with the query string and fragment removed, so campaign parameters and per-contact unsubscribe tokens collapse to one value per destination. Populated only for click events; providers occasionally attach a URL to other event types and those are dropped here.
+      - name: link_type
+        description: Destination category of the clicked link.
+        tests:
+          - accepted_values:
+              arguments:
+                values:
+                  - external
+                  - job_page
+                  - site
+                  - unsubscribe
+      - name: link_organization_slug
+        description: Organization slug parsed from a clicked job link under the current job URL scheme.
+      - name: link_job_slug
+        description: Job slug parsed from a clicked job link under the current job URL scheme.
+      - name: link_campaign_name
+        description: Campaign name parsed from the `utm_campaign` parameter on the clicked link.
   - name: int_email_messages
     description: One row per provider email message across SendGrid and Resend, keyed to the campaign the message was part of.
     columns:
@@ -75,9 +94,12 @@ models:
       - name: source_email_id
         tests:
           - not_null
-      - name: campaign_date
-        description: |
-          UTC date the campaign was sent. Anchored to the earliest event on the message when the provider never delivered a sent event, which happens for suppressed recipients and for the oldest SendGrid history.
+      - name: campaign_name
+        description: Campaign name carried up from the `utm_campaign` parameter on the message's tracked links.
+      - name: first_sent_ts
+        description: Earliest sent-event timestamp for the message. Null when the provider never delivered a sent event, which happens for suppressed recipients and for the oldest SendGrid history.
+      - name: first_event_ts
+        description: Earliest event timestamp of any type for the message, used to anchor the campaign date when no sent event exists.
         tests:
           - not_null
 

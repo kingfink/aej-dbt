@@ -8,7 +8,7 @@ with
             message_id as source_email_id,
             email_address,
             cast(null as string) as subject,
-            link_url,
+            if(event_type = "clicked", link_url, null) as source_link_url,
             ip_address,
             user_agent,
             false as is_backfill
@@ -28,7 +28,7 @@ with
             message_id as source_email_id,
             email_address,
             subject,
-            click_link as link_url,
+            if(event_type = "clicked", click_link, null) as source_link_url,
             click_ip_address as ip_address,
             click_user_agent as user_agent,
             false as is_backfill
@@ -44,7 +44,7 @@ with
             b.message_id as source_email_id,
             b.email_address,
             b.subject,
-            cast(null as string) as link_url,
+            cast(null as string) as source_link_url,
             cast(null as string) as ip_address,
             cast(null as string) as user_agent,
             true as is_backfill
@@ -69,7 +69,31 @@ select
     source_email_id,
     email_address,
     subject,
-    link_url,
+    regexp_replace(source_link_url, r"[?#].*$", "") as link_url,
+    case
+        when source_link_url is null
+        then null
+        when starts_with(net.host(source_link_url), "unsubscribe.")
+        then "unsubscribe"
+        when
+            net.host(source_link_url)
+            not in ("analyticsengineeringjobs.com", "www.analyticsengineeringjobs.com")
+        then "external"
+        when
+            regexp_contains(
+                source_link_url,
+                r"^https?://[^/?#]+/jobs/[^/?#]+(/[^/?#]+)?/?(?:[?#]|$)"
+            )
+        then "job_page"
+        else "site"
+    end as link_type,
+    regexp_extract(
+        source_link_url, r"^https?://[^/?#]+/jobs/([^/?#]+)/[^/?#]+/?(?:[?#]|$)"
+    ) as link_organization_slug,
+    regexp_extract(
+        source_link_url, r"^https?://[^/?#]+/jobs/[^/?#]+/([^/?#]+)/?(?:[?#]|$)"
+    ) as link_job_slug,
+    regexp_extract(source_link_url, r"[?&]utm_campaign=([^&]+)") as link_campaign_name,
     ip_address,
     user_agent,
     is_backfill,
