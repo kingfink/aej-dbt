@@ -1,6 +1,17 @@
 version: 2
 
 exposures:
+  - name: steep_dim_email_campaigns
+    label: "Steep module: Email Campaigns"
+    type: analysis
+    maturity: low
+    description: One row per email campaign, where a campaign is the batch of messages sharing a provider, subject, and send date. A campaign is the entity that corresponds to a newsletter issue, and transactional and test sends are campaigns too.
+    depends_on:
+      - ref("dim_email_campaigns")
+      - ref("dim_email_messages")
+    owner:
+      name: Tim Finkel
+
   - name: steep_dim_email_messages
     label: "Steep module: Email Messages"
     type: analysis
@@ -31,10 +42,12 @@ exposures:
     label: "Steep module: Email Activity"
     type: analysis
     maturity: low
-    description: One row per provider email event and recipient across Resend and SendGrid.
+    description: One row per provider email event and recipient across Resend and SendGrid, including newsletter link clicks resolved to the job each link points at.
     depends_on:
+      - ref("dim_email_campaigns")
       - ref("dim_email_messages")
       - ref("dim_email_subscribers")
+      - ref("dim_jobs")
       - ref("fct_email_events")
     owner:
       name: Tim Finkel
@@ -67,7 +80,9 @@ exposures:
     description: One row per organization and job slug for every job published on Analytics Engineering Jobs.
     depends_on:
       - ref("dim_jobs")
+      - ref("fct_email_events")
       - ref("fct_form_submissions")
+      - ref("fct_web_events")
     owner:
       name: Tim Finkel
 
@@ -79,6 +94,7 @@ exposures:
     depends_on:
       - ref("dim_organizations")
       - ref("fct_form_submissions")
+      - ref("fct_web_events")
     owner:
       name: Tim Finkel
 
@@ -92,6 +108,18 @@ exposures:
       - ref("dim_jobs")
       - ref("dim_organizations")
       - ref("fct_form_submissions")
+    owner:
+      name: Tim Finkel
+
+  - name: steep_fct_web_events
+    label: "Steep module: Web Events"
+    type: analysis
+    maturity: low
+    description: One row per page view or outbound apply click captured on the production site, carrying job and organization context when the visitor was on a job page. PostHog is consent-gated, so every count is a floor on real traffic rather than total traffic.
+    depends_on:
+      - ref("dim_jobs")
+      - ref("dim_organizations")
+      - ref("fct_web_events")
     owner:
       name: Tim Finkel
 
