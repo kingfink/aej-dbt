@@ -93,7 +93,7 @@ select
     regexp_extract(
         source_link_url, r"^https?://[^/?#]+/jobs/[^/?#]+/([^/?#]+)/?(?:[?#]|$)"
     ) as link_job_slug,
-    regexp_extract(source_link_url, r"[?&]utm_campaign=([^&]+)") as link_campaign_name,
+    regexp_extract(source_link_url, r"[?&]utm_campaign=([^&]+)") as link_utm_campaign,
     ip_address,
     user_agent,
     is_backfill,

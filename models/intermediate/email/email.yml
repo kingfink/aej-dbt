@@ -70,8 +70,8 @@ models:
         description: Organization slug parsed from a clicked job link under the current job URL scheme.
       - name: link_job_slug
         description: Job slug parsed from a clicked job link under the current job URL scheme.
-      - name: link_campaign_name
-        description: Campaign name parsed from the `utm_campaign` parameter on the clicked link.
+      - name: link_utm_campaign
+        description: Raw `utm_campaign` parameter value from the clicked link, resolved to a campaign name at the message and campaign grains.
   - name: int_email_messages
     description: One row per provider email message across SendGrid and Resend, keyed to the campaign the message was part of.
     columns:

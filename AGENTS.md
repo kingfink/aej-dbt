@@ -7,6 +7,7 @@
 - Use CTEs only for meaningful transformations, aggregation stages, or shared unioned data.
 - Select only required columns; avoid `select *`.
 - Use `union all`. If deduplication is required, perform it explicitly afterward with `select distinct`, grouping, or a window function.
+- Reference columns by name in `group by` and `order by`, never by ordinal position. Names survive reordering the select list, and no formatter or linter in this project checks ordinals for you.
 - Put blank lines before and after `union all`.
 - Avoid redundant filters, columns, date derivatives, and intermediate calculations.
 - Add columns only for concrete current requirements; do not add speculative fields because they may be useful downstream.
