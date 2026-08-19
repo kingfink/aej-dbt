@@ -4,12 +4,13 @@ select
     e.email_id,
     e.event_type,
     e.event_ts,
+    e.link_url,
+    e.link_type,
+    j.job_id,
     e.event_type in ("opened", "clicked") as is_engagement,
     e.privacy_or_bot_reason is not null as is_privacy_or_bot_like,
     json_strip_nulls(
         json_object(
-            "link_url",
-            e.link_url,
             "ip_address",
             e.ip_address,
             "user_agent",
@@ -24,3 +25,7 @@ select
     ) as email_event_details
 from {{ ref("int_email_message_events") }} as e
 left join {{ ref("int_email_subscribers") }} as s on e.email_address = s.email_address
+left join
+    {{ ref("dim_jobs") }} as j
+    on e.link_organization_slug = j.organization_slug
+    and e.link_job_slug = j.job_slug
