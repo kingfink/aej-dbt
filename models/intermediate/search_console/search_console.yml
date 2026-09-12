@@ -1,0 +1,62 @@
+version: 2
+
+models:
+  - name: int_search_console__pages
+    description: |
+      One row per canonical site path seen in the Search Console URL export, classified into a page type with the organization and job slugs parsed out of the path. Classification lives here so every consumer sees one definition and marts stay flat. Job detail paths are `/jobs/{organization}/{job}/` and organization paths are `/organizations/{organization}/`, which is the same slug pair the site content models key on. Legacy flat job paths with a single path segment stay classified as `other` rather than being guessed at, matching how legacy job links are treated elsewhere.
+    columns:
+      - name: canonical_path
+        description: Site path with the query string and fragment removed and a trailing slash enforced.
+        tests:
+          - not_null
+          - unique
+      - name: page_type
+        description: Kind of page the path addresses.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - home
+                  - job_detail
+                  - job_index
+                  - landing_page
+                  - organization
+                  - organization_index
+                  - other
+                  - subscribe
+                  - tag
+      - name: organization_slug
+        description: Slug of the organization the path addresses, set on job detail and organization pages.
+      - name: job_slug
+        description: Slug of the job the path addresses, set on job detail pages.
+
+unit_tests:
+  - name: int_search_console__pages_classifies_site_paths
+    description: Page type and slugs come from the path shape, and legacy flat job paths stay unresolved.
+    model: int_search_console__pages
+    given:
+      - input: ref("stg_search_console__url_impressions")
+        rows:
+          - {canonical_path: "/"}
+          - {canonical_path: "/jobs/"}
+          - {canonical_path: "/jobs/zocdoc/staff-analytics-engineer-2/"}
+          - {canonical_path: "/organizations/"}
+          - {canonical_path: "/organizations/zocdoc/"}
+          - {canonical_path: "/landing-pages/dbt/"}
+          - {canonical_path: "/tags/"}
+          - {canonical_path: "/subscribe/"}
+          - {canonical_path: "/about/"}
+          - {canonical_path: "/jobs/airbnb-senior-analytics-engineer/"}
+    expect:
+      rows:
+        - {canonical_path: "/", page_type: home, organization_slug: null, job_slug: null}
+        - {canonical_path: "/jobs/", page_type: job_index, organization_slug: null, job_slug: null}
+        - {canonical_path: "/jobs/zocdoc/staff-analytics-engineer-2/", page_type: job_detail, organization_slug: zocdoc, job_slug: staff-analytics-engineer-2}
+        - {canonical_path: "/organizations/", page_type: organization_index, organization_slug: null, job_slug: null}
+        - {canonical_path: "/organizations/zocdoc/", page_type: organization, organization_slug: zocdoc, job_slug: null}
+        - {canonical_path: "/landing-pages/dbt/", page_type: landing_page, organization_slug: null, job_slug: null}
+        - {canonical_path: "/tags/", page_type: tag, organization_slug: null, job_slug: null}
+        - {canonical_path: "/subscribe/", page_type: subscribe, organization_slug: null, job_slug: null}
+        - {canonical_path: "/about/", page_type: other, organization_slug: null, job_slug: null}
+        - {canonical_path: "/jobs/airbnb-senior-analytics-engineer/", page_type: other, organization_slug: null, job_slug: null}

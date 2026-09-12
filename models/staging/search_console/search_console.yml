@@ -1,0 +1,169 @@
+version: 2
+
+sources:
+  - name: search_console
+    database: analytics-engineering-jobs
+    schema: searchconsole
+    loader: Google Search Console bulk export
+    description: |
+      Google Search Console bulk export for the `sc-domain:analyticsengineeringjobs.com` domain property. The property covers every host on the domain, so job URLs are in scope by construction. Google publishes each date two to three days after it closes and occasionally republishes a date, which `ExportLog.epoch_version` records.
+    tables:
+      - name: searchdata_url_impression
+      - name: searchdata_site_impression
+      - name: ExportLog
+        description: |
+          One row per exported date and namespace, carrying the time Google published the export. This is the only real delivery timestamp in the export, so freshness is measured here rather than against `data_date`, which is when searches happened rather than when they landed. Thresholds follow the observed cadence: publishes land about daily, and the longest observed gap is 80 hours.
+        config:
+          loaded_at_field: publish_time
+          freshness:
+            warn_after: {count: 48, period: hour}
+            error_after: {count: 96, period: hour}
+
+models:
+  - name: stg_search_console__url_impressions
+    description: |
+      Search Console URL-level performance aggregated to one row per date, canonical page path, query, country, search type, device, and search appearance. Query strings, fragments, scheme, and host are stripped so tracking parameters and the `www` host collapse onto the canonical site path, and a trailing slash is enforced to match the site's own URLs. Google emits several rows per key, because anonymized-query volume arrives split into separate buckets, so metrics are summed rather than passed through one for one.
+    columns:
+      - name: url_impression_id
+        description: Stable surrogate key generated from the export's own grain.
+        tests:
+          - not_null
+          - unique
+      - name: data_date
+        description: UTC date the searches occurred on.
+        tests:
+          - not_null
+      - name: canonical_path
+        description: Site path the impressions were served for, with the query string and fragment removed and a trailing slash enforced.
+        tests:
+          - not_null
+      - name: query
+        description: Search query, null on anonymized rows.
+      - name: is_anonymized_query
+        description: Whether Google withheld the query because it was rare. Anonymized rows carry no query and hold the majority of impressions.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - true
+                  - false
+                quote: false
+      - name: country
+        description: Country the search came from, as a lowercase ISO 3166-1 alpha-3 code.
+        tests:
+          - not_null
+      - name: search_type
+        description: Search surface the impression was served on, lowercased.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - image
+                  - news
+                  - web
+      - name: device
+        description: Device class the search came from, lowercased.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - desktop
+                  - mobile
+                  - tablet
+      - name: is_job_listing
+        description: Whether the impression was served in the Google Jobs listing experience. Google only sets this when the page qualified, so it doubles as evidence that `JobPosting` markup is being parsed.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - true
+                  - false
+                quote: false
+      - name: is_job_details
+        description: Whether the impression was served in the Google Jobs detail experience.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - true
+                  - false
+                quote: false
+      - name: impressions
+        description: Number of times the page appeared in results.
+        tests:
+          - not_null
+      - name: clicks
+        description: Number of clicks through to the page.
+        tests:
+          - not_null
+      - name: sum_position
+        description: Sum of zero-based result positions across the impressions. Kept additive so average position is derived from summed numerator and denominator; a readable average is `sum_position / impressions + 1`.
+        tests:
+          - not_null
+
+  - name: stg_search_console__site_impressions
+    description: |
+      Search Console property-level performance aggregated to one row per date, query, country, search type, and device. Property-level impressions count one appearance per search even when several of the site's pages rank for it, so these totals are not the URL-level totals rolled up and the two are never unioned.
+    columns:
+      - name: site_impression_id
+        description: Stable surrogate key generated from the export's own grain.
+        tests:
+          - not_null
+          - unique
+      - name: data_date
+        description: UTC date the searches occurred on.
+        tests:
+          - not_null
+      - name: query
+        description: Search query, null on anonymized rows.
+      - name: is_anonymized_query
+        description: Whether Google withheld the query because it was rare.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - true
+                  - false
+                quote: false
+      - name: country
+        description: Country the search came from, as a lowercase ISO 3166-1 alpha-3 code.
+        tests:
+          - not_null
+      - name: search_type
+        description: Search surface the impression was served on, lowercased.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - image
+                  - news
+                  - web
+      - name: device
+        description: Device class the search came from, lowercased.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - desktop
+                  - mobile
+                  - tablet
+      - name: impressions
+        description: Number of times the property appeared in results.
+        tests:
+          - not_null
+      - name: clicks
+        description: Number of clicks through to the property.
+        tests:
+          - not_null
+      - name: sum_top_position
+        description: Sum of the zero-based position of the property's best-ranking result across the impressions. Kept additive; a readable average is `sum_top_position / impressions + 1`.
+        tests:
+          - not_null

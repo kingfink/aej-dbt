@@ -335,6 +335,262 @@ models:
         tests:
           - not_null
 
+  - name: fct_search_performance_daily
+    description: |
+      One row per date, canonical page path, query, country, search type, device, and Google Jobs search appearance, from the Search Console URL-level bulk export. Ratios must be derived from the summed measures: click-through rate is `clicks / impressions` and average position is `sum_position / impressions + 1`, because the export's positions are zero based. Most impressions sit on rows where Google withheld the query, so any query drilldown describes a minority of volume. Pages are classified and resolved to jobs and organizations where the path carries them, so search demand slices by the same dimensions as on-site behavior. History begins 2026-04-19, and Google publishes each date two to three days late.
+    config:
+      group: web_engagement
+    columns:
+      - name: url_impression_id
+        data_type: string
+        description: Stable surrogate key generated from the export's own grain.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+          - unique
+      - name: data_date
+        data_type: date
+        description: UTC date the searches occurred on.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+      - name: canonical_path
+        data_type: string
+        description: Site path the impressions were served for, with the query string and fragment removed and a trailing slash enforced.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref("int_search_console__pages")
+                field: canonical_path
+      - name: page_type
+        data_type: string
+        description: Kind of page the path addresses. Legacy flat job paths are `other` rather than `job_detail`.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - home
+                  - job_detail
+                  - job_index
+                  - landing_page
+                  - organization
+                  - organization_index
+                  - other
+                  - subscribe
+                  - tag
+      - name: job_id
+        data_type: string
+        description: Job dimension key when the path is a job detail page for a known job.
+        tests:
+          - relationships:
+              arguments:
+                to: ref("dim_jobs")
+                field: job_id
+      - name: organization_id
+        data_type: string
+        description: Organization dimension key when the path carries a known organization.
+        tests:
+          - relationships:
+              arguments:
+                to: ref("dim_organizations")
+                field: organization_id
+      - name: query
+        data_type: string
+        description: Search query, null on anonymized rows.
+      - name: is_anonymized_query
+        data_type: bool
+        description: Whether Google withheld the query because it was rare. Anonymized rows carry the majority of impressions, so grouping by query silently drops most volume.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - true
+                  - false
+                quote: false
+      - name: country
+        data_type: string
+        description: Country the search came from, as a lowercase ISO 3166-1 alpha-3 code.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+      - name: device
+        data_type: string
+        description: Device class the search came from.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - desktop
+                  - mobile
+                  - tablet
+      - name: search_type
+        data_type: string
+        description: Search surface the impression was served on.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - image
+                  - news
+                  - web
+      - name: is_job_listing
+        data_type: bool
+        description: Whether the impression was served in the Google Jobs listing experience. Google only sets this when the page qualified, so it is direct evidence that `JobPosting` markup is being parsed.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - true
+                  - false
+                quote: false
+      - name: is_job_details
+        data_type: bool
+        description: Whether the impression was served in the Google Jobs detail experience.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - true
+                  - false
+                quote: false
+      - name: impressions
+        data_type: int64
+        description: Number of times the page appeared in results.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+      - name: clicks
+        data_type: int64
+        description: Number of clicks through to the page.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+      - name: sum_position
+        data_type: int64
+        description: Sum of zero-based result positions across the impressions. Additive, so average position is derived as `sum_position / impressions + 1`.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+
+  - name: fct_search_performance_site_daily
+    description: |
+      One row per date, query, country, search type, and device, from the Search Console property-level bulk export. Property-level impressions count one appearance per search even when several of the site's pages rank for it, so these totals are lower than the URL-level totals rather than equal to them, and the two facts are deliberately not unioned. Average position uses the best-ranking result and is derived as `sum_top_position / impressions + 1`.
+    config:
+      group: web_engagement
+    columns:
+      - name: site_impression_id
+        data_type: string
+        description: Stable surrogate key generated from the export's own grain.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+          - unique
+      - name: data_date
+        data_type: date
+        description: UTC date the searches occurred on.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+      - name: query
+        data_type: string
+        description: Search query, null on anonymized rows.
+      - name: is_anonymized_query
+        data_type: bool
+        description: Whether Google withheld the query because it was rare.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - true
+                  - false
+                quote: false
+      - name: country
+        data_type: string
+        description: Country the search came from, as a lowercase ISO 3166-1 alpha-3 code.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+      - name: device
+        data_type: string
+        description: Device class the search came from.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - desktop
+                  - mobile
+                  - tablet
+      - name: search_type
+        data_type: string
+        description: Search surface the impression was served on.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - image
+                  - news
+                  - web
+      - name: impressions
+        data_type: int64
+        description: Number of times the property appeared in results.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+      - name: clicks
+        data_type: int64
+        description: Number of clicks through to the property.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+      - name: sum_top_position
+        data_type: int64
+        description: Sum of the zero-based position of the property's best-ranking result across the impressions. Additive, so average position is derived as `sum_top_position / impressions + 1`.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+
   - name: dim_email_campaigns
     description: |
       One row per email campaign, where a campaign is the batch of messages sharing a source, subject, and campaign date. Transactional and test sends are campaigns too; `is_test` separates the test sends and the subject separates the weekly newsletter from transactional mail.
