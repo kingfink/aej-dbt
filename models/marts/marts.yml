@@ -144,6 +144,92 @@ models:
         data_type: string
         description: Published or inferred organization location.
 
+  - name: dim_web_sessions
+    description: |
+      One row per PostHog session captured on the production site, carrying the session entry attribution and the acquisition channel derived from it. PostHog stamps the entry referrer and UTM properties on every event in a session and they are constant within a session, so the grain is a plain aggregation over the session identifier and no entry event selection rule is needed. PostHog is consent-gated, so sessions here are a floor on real traffic rather than total traffic.
+    config:
+      group: web_engagement
+    columns:
+      - name: web_session_id
+        data_type: string
+        description: Stable surrogate key generated from the source and the source session identifier.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+          - unique
+      - name: source_session_id
+        data_type: string
+        description: Session identifier supplied by the behavioral analytics provider.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+          - unique
+      - name: source
+        data_type: string
+        description: Behavioral analytics provider that captured the session.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - posthog
+      - name: visitor_id
+        data_type: string
+        description: |
+          Anonymous device identifier for the visitor. Person profiles are disabled, so a visitor is not reconciled across devices or browsers and repeat visitors are undercounted.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+      - name: session_started_ts
+        data_type: timestamp
+        description: Timestamp of the earliest captured event in the session, in UTC.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+      - name: session_entry_page_path
+        data_type: string
+        description: Path of the first page of the session.
+      - name: session_entry_referring_domain
+        data_type: string
+        description: Host the session was referred from, or `$direct` when the visitor arrived with no referrer.
+      - name: session_entry_utm_source
+        data_type: string
+        description: Lowercased campaign source on the session entry URL.
+      - name: session_entry_utm_medium
+        data_type: string
+        description: Lowercased campaign medium on the session entry URL.
+      - name: session_entry_utm_campaign
+        data_type: string
+        description: Campaign name on the session entry URL.
+      - name: channel
+        data_type: string
+        description: |
+          Acquisition channel of the session, evaluated in order with the first match winning: UTM medium `email` or UTM source `newsletter` is `email`; UTM medium `paid`, `cpc`, or `ppc` is `paid`; UTM medium `organic` is `organic_search`; UTM medium `referral` is `referral`; a `$direct` referring domain is `direct`; the site's own domain is `internal`; a known AI assistant host is `ai_assistant`; a known search engine host is `organic_search`; a known webmail host is `email`; anything else is `referral`.
+
+          UTM deliberately beats the referring domain, because email clients strip the referrer and newsletter traffic otherwise reads as direct.
+
+          `internal` is not direct traffic. It is a session whose entry referrer is the site's own domain, which happens when the 30-minute session window expires mid-visit, and it accounted for a quarter of sessions over the 90 days to 2026-09-11. A fact row with no session context has a null `web_session_id` and therefore no channel at all, which is also not direct.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - ai_assistant
+                  - direct
+                  - email
+                  - internal
+                  - organic_search
+                  - paid
+                  - referral
+
   - name: fct_form_submissions
     description: One row per legacy Webflow or current Netlify form submission, linked to known subscribers and site-content dimensions when matching records exist.
     config:
@@ -222,6 +308,15 @@ models:
         tests:
           - not_null
           - is_normalized_email_address
+      - name: web_session_id
+        data_type: string
+        description: |
+          Web session dimension key when the submission carries a session identifier that matches a captured PostHog session. Null means no session context rather than direct traffic: `posthog_session_id` capture on Netlify forms began in 2026-07 and is complete from 2026-08 onward, and visitors who declined analytics consent never carry one.
+        tests:
+          - relationships:
+              arguments:
+                to: ref("dim_web_sessions")
+                field: web_session_id
       - name: posthog_distinct_id
         data_type: string
         description: Anonymous PostHog browser identifier when the visitor explicitly enabled PostHog analytics, retained as a nullable join key to behavioral events.
@@ -304,6 +399,14 @@ models:
           - type: not_null
         tests:
           - not_null
+      - name: web_session_id
+        data_type: string
+        description: Web session dimension key for the session the event belongs to, carrying the session entry attribution and acquisition channel.
+        tests:
+          - relationships:
+              arguments:
+                to: ref("dim_web_sessions")
+                field: web_session_id
       - name: session_id
         data_type: string
         description: Session identifier the event belongs to.
@@ -720,3 +823,34 @@ models:
           - type: not_null
         tests:
           - not_null
+
+unit_tests:
+  - name: dim_web_sessions_derives_channel_precedence
+    description: |
+      UTM beats a `$direct` referring domain, an AI assistant host beats the search engine it is hosted under, a webmail host beats the search engine it is hosted under, the site's own domain is internal rather than referral, and an event with no session identifier produces no session row.
+    model: dim_web_sessions
+    given:
+      - input: ref("stg_posthog__events")
+        rows:
+          - {session_id: newsletter, visitor_id: device_newsletter, event_ts: "2026-09-01 00:00:00+00", session_entry_page_path: /, session_entry_referring_domain: $direct, session_entry_utm_source: Newsletter, session_entry_utm_medium: Email, session_entry_utm_campaign: null}
+          - {session_id: newsletter, visitor_id: device_newsletter, event_ts: "2026-09-01 00:30:00+00", session_entry_page_path: /, session_entry_referring_domain: $direct, session_entry_utm_source: Newsletter, session_entry_utm_medium: Email, session_entry_utm_campaign: null}
+          - {session_id: paid, visitor_id: device_paid, event_ts: "2026-09-01 00:01:00+00", session_entry_page_path: /, session_entry_referring_domain: www.google.com, session_entry_utm_source: google, session_entry_utm_medium: cpc, session_entry_utm_campaign: null}
+          - {session_id: google_jobs, visitor_id: device_google_jobs, event_ts: "2026-09-01 00:02:00+00", session_entry_page_path: /, session_entry_referring_domain: $direct, session_entry_utm_source: google_jobs_apply, session_entry_utm_medium: organic, session_entry_utm_campaign: null}
+          - {session_id: ai, visitor_id: device_ai, event_ts: "2026-09-01 00:03:00+00", session_entry_page_path: /, session_entry_referring_domain: gemini.google.com, session_entry_utm_source: null, session_entry_utm_medium: null, session_entry_utm_campaign: null}
+          - {session_id: webmail, visitor_id: device_webmail, event_ts: "2026-09-01 00:04:00+00", session_entry_page_path: /, session_entry_referring_domain: mail.google.com, session_entry_utm_source: null, session_entry_utm_medium: null, session_entry_utm_campaign: null}
+          - {session_id: search, visitor_id: device_search, event_ts: "2026-09-01 00:05:00+00", session_entry_page_path: /, session_entry_referring_domain: www.google.com, session_entry_utm_source: null, session_entry_utm_medium: null, session_entry_utm_campaign: null}
+          - {session_id: internal, visitor_id: device_internal, event_ts: "2026-09-01 00:06:00+00", session_entry_page_path: /, session_entry_referring_domain: www.analyticsengineeringjobs.com, session_entry_utm_source: null, session_entry_utm_medium: null, session_entry_utm_campaign: null}
+          - {session_id: direct, visitor_id: device_direct, event_ts: "2026-09-01 00:07:00+00", session_entry_page_path: /, session_entry_referring_domain: $direct, session_entry_utm_source: null, session_entry_utm_medium: null, session_entry_utm_campaign: null}
+          - {session_id: referral, visitor_id: device_referral, event_ts: "2026-09-01 00:08:00+00", session_entry_page_path: /, session_entry_referring_domain: t.co, session_entry_utm_source: null, session_entry_utm_medium: null, session_entry_utm_campaign: null}
+          - {session_id: null, visitor_id: device_no_session, event_ts: "2026-09-01 01:00:00+00", session_entry_page_path: /, session_entry_referring_domain: $direct, session_entry_utm_source: null, session_entry_utm_medium: null, session_entry_utm_campaign: null}
+    expect:
+      rows:
+        - {web_session_id: 5da9375c84289105aab6cdd2d38f72cb, source_session_id: newsletter, source: posthog, visitor_id: device_newsletter, session_started_ts: "2026-09-01 00:00:00+00", session_entry_page_path: /, session_entry_referring_domain: $direct, session_entry_utm_source: newsletter, session_entry_utm_medium: email, session_entry_utm_campaign: null, channel: email}
+        - {web_session_id: 47127c83addb4ea7209af049aa7ed399, source_session_id: paid, source: posthog, visitor_id: device_paid, session_started_ts: "2026-09-01 00:01:00+00", session_entry_page_path: /, session_entry_referring_domain: www.google.com, session_entry_utm_source: google, session_entry_utm_medium: cpc, session_entry_utm_campaign: null, channel: paid}
+        - {web_session_id: 6254e249dd1db78827b41e158b79dfdb, source_session_id: google_jobs, source: posthog, visitor_id: device_google_jobs, session_started_ts: "2026-09-01 00:02:00+00", session_entry_page_path: /, session_entry_referring_domain: $direct, session_entry_utm_source: google_jobs_apply, session_entry_utm_medium: organic, session_entry_utm_campaign: null, channel: organic_search}
+        - {web_session_id: ce524991008b1ee13539f9c1c3d26a0c, source_session_id: ai, source: posthog, visitor_id: device_ai, session_started_ts: "2026-09-01 00:03:00+00", session_entry_page_path: /, session_entry_referring_domain: gemini.google.com, session_entry_utm_source: null, session_entry_utm_medium: null, session_entry_utm_campaign: null, channel: ai_assistant}
+        - {web_session_id: 681d1e812c58fdc60284300945561627, source_session_id: webmail, source: posthog, visitor_id: device_webmail, session_started_ts: "2026-09-01 00:04:00+00", session_entry_page_path: /, session_entry_referring_domain: mail.google.com, session_entry_utm_source: null, session_entry_utm_medium: null, session_entry_utm_campaign: null, channel: email}
+        - {web_session_id: 285fe3e36149574edb27d7d7a28b7ddf, source_session_id: search, source: posthog, visitor_id: device_search, session_started_ts: "2026-09-01 00:05:00+00", session_entry_page_path: /, session_entry_referring_domain: www.google.com, session_entry_utm_source: null, session_entry_utm_medium: null, session_entry_utm_campaign: null, channel: organic_search}
+        - {web_session_id: ac16f3651a9bab7db4b47abd47f255b5, source_session_id: internal, source: posthog, visitor_id: device_internal, session_started_ts: "2026-09-01 00:06:00+00", session_entry_page_path: /, session_entry_referring_domain: www.analyticsengineeringjobs.com, session_entry_utm_source: null, session_entry_utm_medium: null, session_entry_utm_campaign: null, channel: internal}
+        - {web_session_id: ca3536ebc5701c19a5ea8f862978dde8, source_session_id: direct, source: posthog, visitor_id: device_direct, session_started_ts: "2026-09-01 00:07:00+00", session_entry_page_path: /, session_entry_referring_domain: $direct, session_entry_utm_source: null, session_entry_utm_medium: null, session_entry_utm_campaign: null, channel: direct}
+        - {web_session_id: 11795594f59594de536c39d265d25489, source_session_id: referral, source: posthog, visitor_id: device_referral, session_started_ts: "2026-09-01 00:08:00+00", session_entry_page_path: /, session_entry_referring_domain: t.co, session_entry_utm_source: null, session_entry_utm_medium: null, session_entry_utm_campaign: null, channel: referral}

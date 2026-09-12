@@ -98,6 +98,18 @@ exposures:
     owner:
       name: Tim Finkel
 
+  - name: steep_dim_web_sessions
+    label: "Steep module: Web Sessions"
+    type: analysis
+    maturity: low
+    description: One row per PostHog session captured on the production site, carrying the session entry attribution and the acquisition channel derived from it, so page views and form submissions can be split by channel.
+    depends_on:
+      - ref("dim_web_sessions")
+      - ref("fct_form_submissions")
+      - ref("fct_web_events")
+    owner:
+      name: Tim Finkel
+
   - name: steep_fct_form_submissions
     label: "Steep module: Form Submissions"
     type: analysis
@@ -107,6 +119,7 @@ exposures:
       - ref("dim_email_subscribers")
       - ref("dim_jobs")
       - ref("dim_organizations")
+      - ref("dim_web_sessions")
       - ref("fct_form_submissions")
     owner:
       name: Tim Finkel
@@ -119,6 +132,7 @@ exposures:
     depends_on:
       - ref("dim_jobs")
       - ref("dim_organizations")
+      - ref("dim_web_sessions")
       - ref("fct_web_events")
     owner:
       name: Tim Finkel

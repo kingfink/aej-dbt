@@ -5,6 +5,7 @@ select
     e.event_type,
     e.event_ts,
     e.visitor_id,
+    s.web_session_id,
     e.session_id,
     e.page_path,
     j.job_id,
@@ -20,6 +21,7 @@ select
         )
     ) as event_details
 from {{ ref("stg_posthog__events") }} as e
+left join {{ ref("dim_web_sessions") }} as s on e.session_id = s.source_session_id
 left join
     {{ ref("dim_jobs") }} as j
     on e.organization_slug = j.organization_slug

@@ -94,7 +94,7 @@
 - For daily subscription state, mark a subscriber as subscribed when they entered the date subscribed or had a subscribe event during the date; a later unsubscribe on the same date does not erase that day's subscription. Do not add source, webhook, or backfill precedence without a concrete requirement.
 - Normalize provider event types upstream through shared logic.
 - Keep source-specific event categories in staging and expose the consolidated category domain in intermediate and mart YAML through `accepted_values` tests.
-- Do not expose `signup_page_url` until ongoing Resend signup attribution is captured reliably; follow-up work is tracked in `kingfink/analytics-engineering-jobs#1437`.
+- Do not expose `signup_page_url` until ongoing Resend signup attribution is captured reliably; follow-up work is tracked in `kingfink/analytics-engineering-jobs#1839`.
 
 ## Site content modeling
 
