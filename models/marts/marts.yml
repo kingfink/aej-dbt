@@ -785,7 +785,7 @@ models:
       One row per email campaign, where a campaign is the batch of messages sharing a source, subject, and campaign date. Transactional and test sends are campaigns too; `is_test` separates the test sends and the subject separates the weekly newsletter from transactional mail.
     config:
       group: email
-    latest_version: 1
+    latest_version: 2
     versions:
       - v: 1
         deprecation_date: 2026-10-14
