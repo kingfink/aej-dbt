@@ -23,6 +23,8 @@ models:
   - name: stg_google_search_console__url_impressions
     description: |
       Search Console URL-level performance aggregated to one row per date, page path, query, country, search type, device, and search appearance. Query strings, fragments, scheme, and host are stripped so tracking parameters and the `www` host collapse onto the canonical site path, and a trailing slash is enforced to match the site's own URLs. Google emits several rows per key, because anonymized-query volume arrives split into separate buckets, so metrics are summed rather than passed through one for one.
+    config:
+      event_time: date_day
     columns:
       - name: url_impression_id
         description: Stable surrogate key generated from the export's own grain.
@@ -91,6 +93,8 @@ models:
   - name: stg_google_search_console__site_impressions
     description: |
       Search Console property-level performance aggregated to one row per date, query, country, search type, and device. Property-level impressions count one appearance per search even when several of the site's pages rank for it, so these totals are not the URL-level totals rolled up and the two are never unioned.
+    config:
+      event_time: date_day
     columns:
       - name: site_impression_id
         description: Stable surrogate key generated from the export's own grain.

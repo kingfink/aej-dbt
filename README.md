@@ -177,7 +177,7 @@ Configure a Healthchecks.io check named `aej-dbt production sync` with:
 - Grace time: 60 minutes
 - Notification integration: email, Slack, or your preferred Healthchecks.io alert destination
 
-The first Sunday run in UTC performs a full refresh; all other runs are incremental. `base_ga4__events` and `base_ga4__users` remain incremental because `dbt_project.yml` sets `+full_refresh: false` for them. Snapshots ignore `--full-refresh`, so the weekly refresh keeps the site-content history in `snp_jobs` and `snp_organizations`. A `modal.Dict` named `aej-dbt-state` tracks the weekly refresh and releases a failed claim so the next run can retry.
+The first Sunday run in UTC performs a full refresh; all other runs are incremental. `base_ga4__events` and `base_ga4__users` remain incremental because `dbt_project.yml` sets `+full_refresh: false` for them. Snapshots ignore `--full-refresh`, so the weekly refresh keeps the site-content history in `snp_jobs` and `snp_organizations`. The Search Console microbatch facts rebuild every monthly batch from their `begin` date during the refresh, which refreshes job and organization keys on older months. A `modal.Dict` named `aej-dbt-state` tracks the weekly refresh and releases a failed claim so the next run can retry.
 
 The scheduled function sends `/start` when it begins, a success ping after both dbt and Parquet publishing finish, and `/fail` if either step raises an error. Healthchecks pings are best-effort: monitoring outages do not block the sync.
 
