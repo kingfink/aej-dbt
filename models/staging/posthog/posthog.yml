@@ -65,11 +65,11 @@ models:
       - name: session_id
         description: PostHog session identifier.
       - name: page_path
-        description: Path of the page the event occurred on.
+        description: Path of the page the event occurred on, normalized with the shared `normalize_page_path` macro so it joins `dim_pages` the same way Search Console paths do.
       - name: organization_slug
-        description: Slug of the organization the event relates to, taken from the event property when present and otherwise parsed from a job page path.
+        description: Slug of the organization the event relates to, taken from the event property when present and otherwise parsed from a current-scheme organization or job page path with `get_organization_slug`.
       - name: job_slug
-        description: Slug of the job the event relates to, taken from the event property when present and otherwise parsed from a job page path.
+        description: Slug of the job the event relates to, taken from the event property when present and otherwise parsed from a current-scheme job page path with `get_job_slug`.
       - name: outbound_url
         description: Destination URL of an outbound click, such as the external application link on an apply click.
       - name: link_text
@@ -81,7 +81,7 @@ models:
       - name: session_referring_domain
         description: Host the session was referred from, or `$direct` when there was no referrer. Repeated on every event in the session.
       - name: session_page_path
-        description: Path of the first page of the session. Repeated on every event in the session.
+        description: Path of the first page of the session, normalized with the shared `normalize_page_path` macro. Repeated on every event in the session.
       - name: session_utm_source
         description: Lowercased campaign source on the session entry URL. Repeated on every event in the session.
       - name: session_utm_medium

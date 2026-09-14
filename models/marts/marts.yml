@@ -194,7 +194,7 @@ models:
           - not_null
       - name: session_page_path
         data_type: string
-        description: Path of the first page of the session.
+        description: Path of the first page of the session, normalized with the shared `normalize_page_path` macro.
       - name: session_referring_domain
         data_type: string
         description: Host the session was referred from, or `$direct` when the visitor arrived with no referrer.
@@ -354,7 +354,7 @@ models:
 
   - name: fct_web_events
     description: |
-      One row per job page view and outbound apply click captured on the production site. `stg_posthog__events` retains every captured event type, so widening this fact is a one-line change. Events are attributed to a job and organization when the event carries job context, either as event properties or as a job page path. Page views are only captured for visitors who consented to analytics, so counts are a floor rather than total traffic. History begins 2025-12-22, and apply clicks begin 2026-04-20.
+      One row per job page view and outbound apply click captured on the production site. `stg_posthog__events` retains every captured event type, so widening this fact is a one-line change. Events resolve to `dim_pages` on the normalized page path. Events are attributed to a job and organization when the event carries that context, either as event properties or as a current-scheme job or organization page path. Page views are only captured for visitors who consented to analytics, so counts are a floor rather than total traffic. History begins 2025-12-22, and apply clicks begin 2026-04-20.
     config:
       group: web_engagement
     columns:
@@ -424,9 +424,17 @@ models:
       - name: source_session_id
         data_type: string
         description: Session identifier supplied by the behavioral analytics provider, retained as the business key for `session_id`.
+      - name: page_id
+        data_type: string
+        description: Page dimension key for the page the event occurred on.
+        tests:
+          - relationships:
+              arguments:
+                to: ref("dim_pages")
+                field: page_id
       - name: page_path
         data_type: string
-        description: Path of the page the event occurred on.
+        description: Path of the page the event occurred on, normalized with the shared `normalize_page_path` macro.
       - name: job_id
         data_type: string
         description: Job dimension key when the event carries job context.
@@ -454,7 +462,7 @@ models:
 
   - name: dim_pages
     description: |
-      One row per site page, keyed on the path normalized with the shared `normalize_page_path` macro and classified with `get_page_type`. Pages currently come from the Search Console URL export, so a page appears once Google has served it in results; PostHog paths join the same dimension once `fct_web_events` normalizes paths with the same macro. Job and organization keys stay on the facts rather than here, so they join straight to `dim_jobs` and `dim_organizations`.
+      One row per site page, keyed on the path normalized with the shared `normalize_page_path` macro and classified with `get_page_type`. Pages are the distinct paths of both the Search Console URL export and PostHog events on the production site, so a page appears once Google has served it in results or a consenting visitor has loaded it, and on-site behavior and search demand slice by the same page. Job and organization keys stay on the facts rather than here, so they join straight to `dim_jobs` and `dim_organizations`.
     config:
       group: web_engagement
     columns:
@@ -1134,7 +1142,7 @@ models:
 
 unit_tests:
   - name: dim_pages_classifies_page_types
-    description: Page type comes from the path prefix, legacy flat job paths are still job pages, and repeated paths collapse to one page.
+    description: Page type comes from the path prefix, legacy flat job paths are still job pages, a path seen only in PostHog is still a page, and paths repeated within or across sources collapse to one page.
     model: dim_pages
     given:
       - input: ref("stg_google_search_console__url_impressions")
@@ -1150,6 +1158,11 @@ unit_tests:
           - {page_path: "/tags/"}
           - {page_path: "/subscribe/"}
           - {page_path: "/about/"}
+      - input: ref("stg_posthog__events")
+        rows:
+          - {page_path: "/jobs/zocdoc/staff-analytics-engineer-2/"}
+          - {page_path: "/organizations/hex/"}
+          - {page_path: null}
     expect:
       rows:
         - {page_path: "/", page_type: home}
@@ -1158,6 +1171,7 @@ unit_tests:
         - {page_path: "/jobs/airbnb-senior-analytics-engineer/", page_type: job}
         - {page_path: "/organizations/", page_type: organization_index}
         - {page_path: "/organizations/zocdoc/", page_type: organization}
+        - {page_path: "/organizations/hex/", page_type: organization}
         - {page_path: "/landing-pages/dbt/", page_type: landing_page}
         - {page_path: "/tags/", page_type: tag}
         - {page_path: "/subscribe/", page_type: subscribe}
