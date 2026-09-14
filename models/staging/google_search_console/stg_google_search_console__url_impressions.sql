@@ -47,8 +47,8 @@ select
     search_type,
     device,
     search_appearance,
-    sum(impressions) as impressions,
-    sum(clicks) as clicks,
+    sum(impressions) as n_impressions,
+    sum(clicks) as n_clicks,
     sum(sum_position) as sum_position
 from url_impressions
 group by 1, 2, 3, 4, 5, 6, 7, 8, 9

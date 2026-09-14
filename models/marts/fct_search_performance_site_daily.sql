@@ -6,7 +6,7 @@ select
     country,
     device,
     search_type,
-    impressions,
-    clicks,
+    n_impressions,
+    n_clicks,
     sum_top_position
 from {{ ref("stg_google_search_console__site_impressions") }}

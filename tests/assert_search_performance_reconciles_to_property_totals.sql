@@ -4,27 +4,27 @@
 -- means one of the two exports loaded partially.
 with
     url_daily as (
-        select date_day, sum(impressions) as impressions, sum(clicks) as clicks
+        select date_day, sum(n_impressions) as n_impressions, sum(n_clicks) as n_clicks
         from {{ ref("fct_search_performance_daily") }}
         group by 1
     ),
 
     site_daily as (
-        select date_day, sum(impressions) as impressions, sum(clicks) as clicks
+        select date_day, sum(n_impressions) as n_impressions, sum(n_clicks) as n_clicks
         from {{ ref("fct_search_performance_site_daily") }}
         group by 1
     )
 
 select
     coalesce(u.date_day, s.date_day) as date_day,
-    u.impressions as url_impressions,
-    s.impressions as site_impressions,
-    u.clicks as url_clicks,
-    s.clicks as site_clicks
+    u.n_impressions as url_impressions,
+    s.n_impressions as site_impressions,
+    u.n_clicks as url_clicks,
+    s.n_clicks as site_clicks
 from url_daily as u
 full join site_daily as s on u.date_day = s.date_day
 where
     u.date_day is null
     or s.date_day is null
-    or s.impressions > u.impressions
-    or s.clicks > u.clicks
+    or s.n_impressions > u.n_impressions
+    or s.n_clicks > u.n_clicks

@@ -11,8 +11,8 @@ select
     u.device,
     u.search_type,
     u.search_appearance,
-    u.impressions,
-    u.clicks,
+    u.n_impressions,
+    u.n_clicks,
     u.sum_position
 from {{ ref("stg_google_search_console__url_impressions") }} as u
 left join

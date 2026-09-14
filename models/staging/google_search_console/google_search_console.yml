@@ -81,16 +81,16 @@ models:
                 values:
                   - job_details
                   - job_listing
-      - name: impressions
+      - name: n_impressions
         description: Number of times the page appeared in results.
         tests:
           - not_null
-      - name: clicks
+      - name: n_clicks
         description: Number of clicks through to the page.
         tests:
           - not_null
       - name: sum_position
-        description: Sum of zero-based result positions across the impressions. Kept additive so average position is derived from summed numerator and denominator; a readable average is `sum_position / impressions + 1`.
+        description: Sum of zero-based result positions across the impressions. Kept additive so average position is derived from summed numerator and denominator; a readable average is `sum_position / n_impressions + 1`.
         tests:
           - not_null
 
@@ -143,15 +143,15 @@ models:
                   - desktop
                   - mobile
                   - tablet
-      - name: impressions
+      - name: n_impressions
         description: Number of times the property appeared in results.
         tests:
           - not_null
-      - name: clicks
+      - name: n_clicks
         description: Number of clicks through to the property.
         tests:
           - not_null
       - name: sum_top_position
-        description: Sum of the zero-based position of the property's best-ranking result across the impressions. Kept additive; a readable average is `sum_top_position / impressions + 1`.
+        description: Sum of the zero-based position of the property's best-ranking result across the impressions. Kept additive; a readable average is `sum_top_position / n_impressions + 1`.
         tests:
           - not_null

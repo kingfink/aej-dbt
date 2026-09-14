@@ -29,6 +29,7 @@
 - Give each mart a single `_id` surrogate primary key; retain natural or composite identifiers as business keys.
 - Staging models may retain source-native names; intermediate and mart models should use canonical project names.
 - Use `stg_`, `int_`, `dim_`, and `fct_` prefixes consistently.
+- Prefix new count measures with `n_` and summed measures with `sum_`, such as `n_impressions` and `sum_position`. Existing columns such as `message_count` keep their names until their contracts change for another reason.
 
 ## Joins
 
@@ -122,7 +123,7 @@
 - Measure source freshness on `ExportLog.publish_time`, the only real delivery timestamp in the export. `data_date` is when searches happened, not when they landed.
 - Tune freshness to Google's publish lag. Dates land two to three days after they close, and the longest observed gap between publishes is 80 hours.
 - Aggregate the export to its own grain in staging rather than passing rows through. Google splits anonymized-query volume into several rows per key, so the measures are summed and a pass-through model has no unique key.
-- Keep `impressions`, `clicks`, and `sum_position` (or `sum_top_position`) as the only additive measures. Derive click-through rate and average position from summed numerators and denominators, never by averaging row-level rates. The export's positions are zero based, so average position is `sum_position / impressions + 1`.
+- Keep `n_impressions`, `n_clicks`, and `sum_position` (or `sum_top_position`) as the only additive measures. Derive click-through rate and average position from summed numerators and denominators, never by averaging row-level rates. The export's positions are zero based, so average position is `sum_position / n_impressions + 1`.
 - Normalize URLs to a canonical site path in staging: strip scheme, host, query string, and fragment, and enforce a trailing slash so tracking parameters and the `www` host collapse onto the site's own path.
 - Classify canonical paths in `int_google_search_console__pages` so marts stay flat and every consumer sees one definition. Resolve job detail and organization paths to `dim_jobs` and `dim_organizations` so search demand slices by the same dimensions as on-site behavior.
 - Classify page types by path prefix and parse slugs with the shared `get_organization_slug` and `get_job_slug` macros so search paths join to site content on the same definitions. Resolve job slugs only under the current `/jobs/{organization}/{job}/` scheme; legacy flat single-segment job paths are still `job_detail` pages but stay unresolved rather than being guessed at, matching how legacy job links are treated in the email domain.

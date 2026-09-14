@@ -337,7 +337,7 @@ models:
 
   - name: fct_search_performance_daily
     description: |
-      One row per date, canonical page path, query, country, search type, device, and Google Jobs search appearance, from the Search Console URL-level bulk export. Ratios must be derived from the summed measures: click-through rate is `clicks / impressions` and average position is `sum_position / impressions + 1`, because the export's positions are zero based. Most impressions sit on rows where Google withheld the query, so any query drilldown describes a minority of volume. Pages are classified and resolved to jobs and organizations where the path carries them, so search demand slices by the same dimensions as on-site behavior. History begins 2026-04-19, and Google publishes each date two to three days late.
+      One row per date, canonical page path, query, country, search type, device, and Google Jobs search appearance, from the Search Console URL-level bulk export. Ratios must be derived from the summed measures: click-through rate is `n_clicks / n_impressions` and average position is `sum_position / n_impressions + 1`, because the export's positions are zero based. Most impressions sit on rows where Google withheld the query, so any query drilldown describes a minority of volume. Pages are classified and resolved to jobs and organizations where the path carries them, so search demand slices by the same dimensions as on-site behavior. History begins 2026-04-19, and Google publishes each date two to three days late.
     config:
       group: web_engagement
     columns:
@@ -460,14 +460,14 @@ models:
                 values:
                   - job_details
                   - job_listing
-      - name: impressions
+      - name: n_impressions
         data_type: int64
         description: Number of times the page appeared in results.
         constraints:
           - type: not_null
         tests:
           - not_null
-      - name: clicks
+      - name: n_clicks
         data_type: int64
         description: Number of clicks through to the page.
         constraints:
@@ -476,7 +476,7 @@ models:
           - not_null
       - name: sum_position
         data_type: int64
-        description: Sum of zero-based result positions across the impressions. Additive, so average position is derived as `sum_position / impressions + 1`.
+        description: Sum of zero-based result positions across the impressions. Additive, so average position is derived as `sum_position / n_impressions + 1`.
         constraints:
           - type: not_null
         tests:
@@ -484,7 +484,7 @@ models:
 
   - name: fct_search_performance_site_daily
     description: |
-      One row per date, query, country, search type, and device, from the Search Console property-level bulk export. Property-level impressions count one appearance per search even when several of the site's pages rank for it, so these totals are lower than the URL-level totals rather than equal to them, and the two facts are deliberately not unioned. Average position uses the best-ranking result and is derived as `sum_top_position / impressions + 1`.
+      One row per date, query, country, search type, and device, from the Search Console property-level bulk export. Property-level impressions count one appearance per search even when several of the site's pages rank for it, so these totals are lower than the URL-level totals rather than equal to them, and the two facts are deliberately not unioned. Average position uses the best-ranking result and is derived as `sum_top_position / n_impressions + 1`.
     config:
       group: web_engagement
     columns:
@@ -552,14 +552,14 @@ models:
                   - image
                   - news
                   - web
-      - name: impressions
+      - name: n_impressions
         data_type: int64
         description: Number of times the property appeared in results.
         constraints:
           - type: not_null
         tests:
           - not_null
-      - name: clicks
+      - name: n_clicks
         data_type: int64
         description: Number of clicks through to the property.
         constraints:
@@ -568,7 +568,7 @@ models:
           - not_null
       - name: sum_top_position
         data_type: int64
-        description: Sum of the zero-based position of the property's best-ranking result across the impressions. Additive, so average position is derived as `sum_top_position / impressions + 1`.
+        description: Sum of the zero-based position of the property's best-ranking result across the impressions. Additive, so average position is derived as `sum_top_position / n_impressions + 1`.
         constraints:
           - type: not_null
         tests:
