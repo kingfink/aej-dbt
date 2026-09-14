@@ -1,6 +1,6 @@
 select
     u.url_impression_id,
-    u.data_date,
+    u.date_day,
     u.canonical_path,
     p.page_type,
     j.job_id,
@@ -10,14 +10,14 @@ select
     u.country,
     u.device,
     u.search_type,
-    u.is_job_listing,
-    u.is_job_details,
+    u.search_appearance,
     u.impressions,
     u.clicks,
     u.sum_position
-from {{ ref("stg_search_console__url_impressions") }} as u
+from {{ ref("stg_google_search_console__url_impressions") }} as u
 left join
-    {{ ref("int_search_console__pages") }} as p on u.canonical_path = p.canonical_path
+    {{ ref("int_google_search_console__pages") }} as p
+    on u.canonical_path = p.canonical_path
 left join
     {{ ref("dim_jobs") }} as j
     on p.organization_slug = j.organization_slug

@@ -1,6 +1,6 @@
 select
     site_impression_id,
-    data_date,
+    date_day,
     query,
     is_anonymized_query,
     country,
@@ -9,4 +9,4 @@ select
     impressions,
     clicks,
     sum_top_position
-from {{ ref("stg_search_console__site_impressions") }}
+from {{ ref("stg_google_search_console__site_impressions") }}

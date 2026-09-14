@@ -1,9 +1,9 @@
 version: 2
 
 models:
-  - name: int_search_console__pages
+  - name: int_google_search_console__pages
     description: |
-      One row per canonical site path seen in the Search Console URL export, classified into a page type with the organization and job slugs parsed out of the path. Classification lives here so every consumer sees one definition and marts stay flat. Job detail paths are `/jobs/{organization}/{job}/` and organization paths are `/organizations/{organization}/`, which is the same slug pair the site content models key on. Legacy flat job paths with a single path segment stay classified as `other` rather than being guessed at, matching how legacy job links are treated elsewhere.
+      One row per canonical site path seen in the Search Console URL export, classified into a page type with the organization and job slugs parsed out of the path. Classification lives here so every consumer sees one definition and marts stay flat. Job detail paths are `/jobs/{organization}/{job}/` and organization paths are `/organizations/{organization}/`, which is the same slug pair the site content models key on. Slugs parse with the same `get_organization_slug` and `get_job_slug` macros as `stg_jobs` and `stg_organizations`, so they join on identical definitions. Legacy flat job paths with a single segment are still job detail pages, but their slugs stay null rather than being guessed at, matching how legacy job links are treated elsewhere.
     columns:
       - name: canonical_path
         description: Site path with the query string and fragment removed and a trailing slash enforced.
@@ -32,11 +32,11 @@ models:
         description: Slug of the job the path addresses, set on job detail pages.
 
 unit_tests:
-  - name: int_search_console__pages_classifies_site_paths
-    description: Page type and slugs come from the path shape, and legacy flat job paths stay unresolved.
-    model: int_search_console__pages
+  - name: int_google_search_console__pages_classifies_site_paths
+    description: Page type comes from the path prefix, slugs parse with the same macros as the site content models, and legacy flat job paths are job pages whose slugs stay unresolved.
+    model: int_google_search_console__pages
     given:
-      - input: ref("stg_search_console__url_impressions")
+      - input: ref("stg_google_search_console__url_impressions")
         rows:
           - {canonical_path: "/"}
           - {canonical_path: "/jobs/"}
@@ -59,4 +59,4 @@ unit_tests:
         - {canonical_path: "/tags/", page_type: tag, organization_slug: null, job_slug: null}
         - {canonical_path: "/subscribe/", page_type: subscribe, organization_slug: null, job_slug: null}
         - {canonical_path: "/about/", page_type: other, organization_slug: null, job_slug: null}
-        - {canonical_path: "/jobs/airbnb-senior-analytics-engineer/", page_type: other, organization_slug: null, job_slug: null}
+        - {canonical_path: "/jobs/airbnb-senior-analytics-engineer/", page_type: job_detail, organization_slug: null, job_slug: null}

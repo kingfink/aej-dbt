@@ -11,7 +11,7 @@ select
             ]
         )
     }} as site_impression_id,
-    data_date,
+    data_date as date_day,
     query,
     is_anonymized_query,
     country,
@@ -20,5 +20,5 @@ select
     sum(impressions) as impressions,
     sum(clicks) as clicks,
     sum(sum_top_position) as sum_top_position
-from {{ source("search_console", "searchdata_site_impression") }}
+from {{ source("google_search_console", "searchdata_site_impression") }}
 group by 1, 2, 3, 4, 5, 6, 7

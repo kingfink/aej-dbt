@@ -1,7 +1,7 @@
 version: 2
 
 sources:
-  - name: search_console
+  - name: google_search_console
     database: analytics-engineering-jobs
     schema: searchconsole
     loader: Google Search Console bulk export
@@ -20,7 +20,7 @@ sources:
             error_after: {count: 96, period: hour}
 
 models:
-  - name: stg_search_console__url_impressions
+  - name: stg_google_search_console__url_impressions
     description: |
       Search Console URL-level performance aggregated to one row per date, canonical page path, query, country, search type, device, and search appearance. Query strings, fragments, scheme, and host are stripped so tracking parameters and the `www` host collapse onto the canonical site path, and a trailing slash is enforced to match the site's own URLs. Google emits several rows per key, because anonymized-query volume arrives split into separate buckets, so metrics are summed rather than passed through one for one.
     columns:
@@ -29,7 +29,7 @@ models:
         tests:
           - not_null
           - unique
-      - name: data_date
+      - name: date_day
         description: UTC date the searches occurred on.
         tests:
           - not_null
@@ -73,26 +73,14 @@ models:
                   - desktop
                   - mobile
                   - tablet
-      - name: is_job_listing
-        description: Whether the impression was served in the Google Jobs listing experience. Google only sets this when the page qualified, so it doubles as evidence that `JobPosting` markup is being parsed.
+      - name: search_appearance
+        description: Google Jobs experience the impression was served in, null for a standard result. Google only sets these when the page qualified, so they double as evidence that `JobPosting` markup is being parsed. The export carries them as separate flags; they are mutually exclusive, which a data test on the source enforces.
         tests:
-          - not_null
           - accepted_values:
               arguments:
                 values:
-                  - true
-                  - false
-                quote: false
-      - name: is_job_details
-        description: Whether the impression was served in the Google Jobs detail experience.
-        tests:
-          - not_null
-          - accepted_values:
-              arguments:
-                values:
-                  - true
-                  - false
-                quote: false
+                  - job_details
+                  - job_listing
       - name: impressions
         description: Number of times the page appeared in results.
         tests:
@@ -106,7 +94,7 @@ models:
         tests:
           - not_null
 
-  - name: stg_search_console__site_impressions
+  - name: stg_google_search_console__site_impressions
     description: |
       Search Console property-level performance aggregated to one row per date, query, country, search type, and device. Property-level impressions count one appearance per search even when several of the site's pages rank for it, so these totals are not the URL-level totals rolled up and the two are never unioned.
     columns:
@@ -115,7 +103,7 @@ models:
         tests:
           - not_null
           - unique
-      - name: data_date
+      - name: date_day
         description: UTC date the searches occurred on.
         tests:
           - not_null

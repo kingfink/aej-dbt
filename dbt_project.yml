@@ -36,7 +36,7 @@ models:
       posthog:
         +access: private
         +group: web_engagement
-      search_console:
+      google_search_console:
         +access: private
         +group: web_engagement
       webflow:
@@ -47,7 +47,7 @@ models:
       email:
         +access: private
         +group: email
-      search_console:
+      google_search_console:
         +access: private
         +group: web_engagement
     marts:

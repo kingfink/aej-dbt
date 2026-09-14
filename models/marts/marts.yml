@@ -349,7 +349,7 @@ models:
         tests:
           - not_null
           - unique
-      - name: data_date
+      - name: date_day
         data_type: date
         description: UTC date the searches occurred on.
         constraints:
@@ -365,11 +365,11 @@ models:
           - not_null
           - relationships:
               arguments:
-                to: ref("int_search_console__pages")
+                to: ref("int_google_search_console__pages")
                 field: canonical_path
       - name: page_type
         data_type: string
-        description: Kind of page the path addresses. Legacy flat job paths are `other` rather than `job_detail`.
+        description: Kind of page the path addresses. Legacy flat job paths are `job_detail` but resolve to no job.
         constraints:
           - type: not_null
         tests:
@@ -451,32 +451,15 @@ models:
                   - image
                   - news
                   - web
-      - name: is_job_listing
-        data_type: bool
-        description: Whether the impression was served in the Google Jobs listing experience. Google only sets this when the page qualified, so it is direct evidence that `JobPosting` markup is being parsed.
-        constraints:
-          - type: not_null
+      - name: search_appearance
+        data_type: string
+        description: Google Jobs experience the impression was served in, null for a standard result. Google only sets these when the page qualified, so they are direct evidence that `JobPosting` markup is being parsed.
         tests:
-          - not_null
           - accepted_values:
               arguments:
                 values:
-                  - true
-                  - false
-                quote: false
-      - name: is_job_details
-        data_type: bool
-        description: Whether the impression was served in the Google Jobs detail experience.
-        constraints:
-          - type: not_null
-        tests:
-          - not_null
-          - accepted_values:
-              arguments:
-                values:
-                  - true
-                  - false
-                quote: false
+                  - job_details
+                  - job_listing
       - name: impressions
         data_type: int64
         description: Number of times the page appeared in results.
@@ -513,7 +496,7 @@ models:
         tests:
           - not_null
           - unique
-      - name: data_date
+      - name: date_day
         data_type: date
         description: UTC date the searches occurred on.
         constraints:
