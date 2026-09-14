@@ -30,4 +30,8 @@ left join
     and e.job_slug = j.job_slug
 left join
     {{ ref("dim_organizations") }} as o on e.organization_slug = o.organization_slug
-where e.event_type in ("apply_click", "page_view")
+where
+    e.event_type in ("apply_click", "page_view")
+    {% if is_incremental() %}
+        and e.event_ts >= timestamp_sub(current_timestamp(), interval 3 day)
+    {% endif %}

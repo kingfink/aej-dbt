@@ -354,9 +354,13 @@ models:
 
   - name: fct_web_events
     description: |
-      One row per job page view and outbound apply click captured on the production site. `stg_posthog__events` retains every captured event type, so widening this fact is a one-line change. Events resolve to `dim_pages` on the normalized page path. Events are attributed to a job and organization when the event carries that context, either as event properties or as a current-scheme job or organization page path. Page views are only captured for visitors who consented to analytics, so counts are a floor rather than total traffic. History begins 2025-12-22, and apply clicks begin 2026-04-20.
+      One row per job page view and outbound apply click captured on the production site. `stg_posthog__events` retains every captured event type, so widening this fact is a one-line change. Events resolve to `dim_pages` on the normalized page path. Events are attributed to a job and organization when the event carries that context, either as event properties or as a current-scheme job or organization page path. Page views are only captured for visitors who consented to analytics, so counts are a floor rather than total traffic. History begins 2025-12-22, and apply clicks begin 2026-04-20. Built incrementally, merging on `event_id` the events that occurred in the three days before each run, so session, page, job, and organization keys on older events reflect the dimensions when the event was loaded until the weekly full refresh rebuilds every event.
     config:
       group: web_engagement
+      materialized: incremental
+      incremental_strategy: merge
+      unique_key: event_id
+      on_schema_change: append_new_columns
     columns:
       - name: event_id
         data_type: string
@@ -1223,3 +1227,29 @@ unit_tests:
         - {source_session_id: "direct", session_started_ts: "2026-09-01 00:10:00+00", channel: direct}
         - {source_session_id: "referral", session_started_ts: "2026-09-01 00:11:00+00", channel: referral}
         - {source_session_id: "no_referrer", session_started_ts: "2026-09-01 00:12:00+00", channel: unknown}
+
+  - name: fct_web_events_reprocesses_recent_events
+    description: An incremental run keeps only page views and apply clicks inside the lookback window, dropping older events and event types outside the fact. The window is relative to the run time, so fixtures sit far outside it on either side.
+    model: fct_web_events
+    overrides:
+      macros:
+        is_incremental: true
+    given:
+      - input: ref("stg_posthog__events")
+        rows:
+          - {event_id: "before_lookback", event_type: "page_view", event_ts: "2000-01-01 00:00:00+00"}
+          - {event_id: "recent_apply_click", event_type: "apply_click", event_ts: "2999-01-01 00:00:00+00"}
+          - {event_id: "recent_page_view", event_type: "page_view", event_ts: "2999-01-01 00:00:00+00"}
+          - {event_id: "other_type", event_type: "page_leave", event_ts: "2999-01-01 00:00:00+00"}
+      - input: ref("dim_web_sessions")
+        rows: []
+      - input: ref("dim_pages")
+        rows: []
+      - input: ref("dim_jobs")
+        rows: []
+      - input: ref("dim_organizations")
+        rows: []
+    expect:
+      rows:
+        - {event_id: "recent_apply_click"}
+        - {event_id: "recent_page_view"}
