@@ -1,7 +1,7 @@
 select
     u.url_impression_id,
     u.date_day,
-    u.page_id,
+    p.page_id,
     j.job_id,
     coalesce(j.organization_id, o.organization_id) as organization_id,
     c.country_id,
@@ -13,6 +13,7 @@ select
     u.n_clicks,
     u.sum_position
 from {{ ref("stg_google_search_console__url_impressions") }} as u
+left join {{ ref("dim_pages") }} as p on u.page_path = p.page_path
 left join
     {{ ref("dim_jobs") }} as j
     on u.organization_slug = j.organization_slug

@@ -1014,3 +1014,34 @@ models:
           - type: not_null
         tests:
           - not_null
+
+unit_tests:
+  - name: dim_pages_classifies_page_types
+    description: Page type comes from the path prefix, legacy flat job paths are still job pages, and repeated paths collapse to one page.
+    model: dim_pages
+    given:
+      - input: ref("stg_google_search_console__url_impressions")
+        rows:
+          - {page_path: "/"}
+          - {page_path: "/jobs/"}
+          - {page_path: "/jobs/zocdoc/staff-analytics-engineer-2/"}
+          - {page_path: "/jobs/zocdoc/staff-analytics-engineer-2/"}
+          - {page_path: "/jobs/airbnb-senior-analytics-engineer/"}
+          - {page_path: "/organizations/"}
+          - {page_path: "/organizations/zocdoc/"}
+          - {page_path: "/landing-pages/dbt/"}
+          - {page_path: "/tags/"}
+          - {page_path: "/subscribe/"}
+          - {page_path: "/about/"}
+    expect:
+      rows:
+        - {page_path: "/", page_type: home}
+        - {page_path: "/jobs/", page_type: job_index}
+        - {page_path: "/jobs/zocdoc/staff-analytics-engineer-2/", page_type: job}
+        - {page_path: "/jobs/airbnb-senior-analytics-engineer/", page_type: job}
+        - {page_path: "/organizations/", page_type: organization_index}
+        - {page_path: "/organizations/zocdoc/", page_type: organization}
+        - {page_path: "/landing-pages/dbt/", page_type: landing_page}
+        - {page_path: "/tags/", page_type: tag}
+        - {page_path: "/subscribe/", page_type: subscribe}
+        - {page_path: "/about/", page_type: other}

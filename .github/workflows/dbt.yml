@@ -45,4 +45,4 @@ jobs:
           enable-cache: true
           python-version: "3.13"
       - run: uv sync --locked
-      - run: ./bin/mdbt build --select package:this,resource_type:model package:this,resource_type:seed
+      - run: ./bin/mdbt build --select package:this

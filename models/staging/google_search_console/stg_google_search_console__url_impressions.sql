@@ -34,7 +34,6 @@ select
         )
     }} as url_impression_id,
     date_day,
-    {{ dbt_utils.generate_surrogate_key(["page_path"]) }} as page_id,
     page_path,
     if(
         page_path like "/organizations/%" or page_path like "/jobs/%/%/",
@@ -51,4 +50,4 @@ select
     sum(clicks) as n_clicks,
     sum(sum_position) as sum_position
 from url_impressions
-group by 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11
+group by 1, 2, 3, 4, 5, 6, 7, 8, 9, 10
