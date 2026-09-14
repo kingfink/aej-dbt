@@ -1,6 +1,6 @@
 select
-    {{ get_organization_slug(file_path) }} as organization_slug,
-    {{ get_job_slug(file_path) }} as job_slug,
+    {{ get_organization_slug("file_path") }} as organization_slug,
+    {{ get_job_slug("file_path") }} as job_slug,
     {{ get_frontmatter_value("frontmatter", "$.active", "bool") }} as is_active,
     {{ get_frontmatter_value("frontmatter", "$.featured", "bool") }} as is_featured,
     {{ get_frontmatter_value("frontmatter", "$.date", "date") }} as date_added,

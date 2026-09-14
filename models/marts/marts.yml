@@ -438,6 +438,300 @@ models:
         tests:
           - not_null
 
+  - name: dim_pages
+    description: |
+      One row per site page, keyed on the path normalized with the shared `normalize_page_path` macro and classified with `get_page_type`. Pages currently come from the Search Console URL export, so a page appears once Google has served it in results; PostHog paths join the same dimension once `fct_web_events` normalizes paths with the same macro. Job and organization keys stay on the facts rather than here, so they join straight to `dim_jobs` and `dim_organizations`.
+    config:
+      group: web_engagement
+    columns:
+      - name: page_id
+        data_type: string
+        description: Stable surrogate key generated from the normalized page path.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+          - unique
+      - name: page_path
+        data_type: string
+        description: Site path with scheme, host, query string, and fragment removed and exactly one trailing slash.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+          - unique
+      - name: page_type
+        data_type: string
+        description: Kind of page the path addresses. Legacy flat job paths are `job` pages that resolve to no job.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - home
+                  - job
+                  - job_index
+                  - landing_page
+                  - organization
+                  - organization_index
+                  - other
+                  - subscribe
+                  - tag
+
+  - name: dim_countries
+    description: |
+      One row per ISO 3166-1 country plus Kosovo, from the `countries` seed. Sources that emit different code formats resolve to the same row: Search Console uses three-letter codes and PostHog GeoIP uses two-letter codes.
+    config:
+      group: web_engagement
+    columns:
+      - name: country_id
+        data_type: string
+        description: Stable surrogate key generated from the three-letter country code.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+          - unique
+      - name: alpha_3_code
+        data_type: string
+        description: Uppercase ISO 3166-1 alpha-3 code, or `XKK` for Kosovo.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+          - unique
+      - name: alpha_2_code
+        data_type: string
+        description: Uppercase ISO 3166-1 alpha-2 code, or `XK` for Kosovo.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+          - unique
+      - name: country_name
+        data_type: string
+        description: Readable country name, using the common name where ISO's official name is formal.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+          - unique
+      - name: continent_name
+        data_type: string
+        description: Continent the country belongs to.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - Africa
+                  - Antarctica
+                  - Asia
+                  - Europe
+                  - North America
+                  - Oceania
+                  - South America
+
+  - name: fct_search_performance_daily
+    description: |
+      One row per date, page, query, country, search type, device, and Google Jobs search appearance, from the Search Console URL-level bulk export. Ratios must be derived from the summed measures: click-through rate is `n_clicks / n_impressions` and average position is `sum_position / n_impressions + 1`, because the export's positions are zero based. Most impressions sit on rows where Google withheld the query, so any query drilldown describes a minority of volume. Page attributes live in `dim_pages` and country attributes in `dim_countries`, and job and organization pages resolve to `dim_jobs` and `dim_organizations`, so search demand slices by the same dimensions as on-site behavior. History begins 2026-04-19, and Google publishes each date two to three days late.
+    config:
+      group: web_engagement
+    columns:
+      - name: url_impression_id
+        data_type: string
+        description: Stable surrogate key generated from the export's own grain.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+          - unique
+      - name: date_day
+        data_type: date
+        description: UTC date the searches occurred on.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+      - name: page_id
+        data_type: string
+        description: Page dimension key for the page the impressions were served for.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref("dim_pages")
+                field: page_id
+      - name: job_id
+        data_type: string
+        description: Job dimension key when the path is a job detail page for a known job.
+        tests:
+          - relationships:
+              arguments:
+                to: ref("dim_jobs")
+                field: job_id
+      - name: organization_id
+        data_type: string
+        description: Organization dimension key when the path carries a known organization.
+        tests:
+          - relationships:
+              arguments:
+                to: ref("dim_organizations")
+                field: organization_id
+      - name: country_id
+        data_type: string
+        description: Country dimension key for where the search came from. Null when Google could not determine the country, which it reports as `ZZZ`.
+        tests:
+          - relationships:
+              arguments:
+                to: ref("dim_countries")
+                field: country_id
+      - name: query
+        data_type: string
+        description: Search query, null when Google withheld it because it was rare. Anonymized rows carry most impressions, so grouping by query silently drops most volume.
+      - name: device
+        data_type: string
+        description: Device class the search came from.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - desktop
+                  - mobile
+                  - tablet
+      - name: search_type
+        data_type: string
+        description: Search surface the impression was served on.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - image
+                  - news
+                  - web
+      - name: search_appearance
+        data_type: string
+        description: Google Jobs experience the impression was served in, null for a standard result. Google only sets these when the page qualified, so they are direct evidence that `JobPosting` markup is being parsed.
+        tests:
+          - accepted_values:
+              arguments:
+                values:
+                  - job_details
+                  - job_listing
+      - name: n_impressions
+        data_type: int64
+        description: Number of times the page appeared in results.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+      - name: n_clicks
+        data_type: int64
+        description: Number of clicks through to the page.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+      - name: sum_position
+        data_type: int64
+        description: Sum of zero-based result positions across the impressions. Additive, so average position is derived as `sum_position / n_impressions + 1`.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+
+  - name: fct_search_performance_site_daily
+    description: |
+      One row per date, query, country, search type, and device, from the Search Console property-level bulk export. Property-level impressions count one appearance per search even when several of the site's pages rank for it, so these totals are lower than the URL-level totals rather than equal to them, and the two facts are deliberately not unioned. Average position uses the best-ranking result and is derived as `sum_top_position / n_impressions + 1`.
+    config:
+      group: web_engagement
+    columns:
+      - name: site_impression_id
+        data_type: string
+        description: Stable surrogate key generated from the export's own grain.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+          - unique
+      - name: date_day
+        data_type: date
+        description: UTC date the searches occurred on.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+      - name: country_id
+        data_type: string
+        description: Country dimension key for where the search came from. Null when Google could not determine the country, which it reports as `ZZZ`.
+        tests:
+          - relationships:
+              arguments:
+                to: ref("dim_countries")
+                field: country_id
+      - name: query
+        data_type: string
+        description: Search query, null when Google withheld it because it was rare. Anonymized rows carry most impressions, so grouping by query silently drops most volume.
+      - name: device
+        data_type: string
+        description: Device class the search came from.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - desktop
+                  - mobile
+                  - tablet
+      - name: search_type
+        data_type: string
+        description: Search surface the impression was served on.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - image
+                  - news
+                  - web
+      - name: n_impressions
+        data_type: int64
+        description: Number of times the property appeared in results.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+      - name: n_clicks
+        data_type: int64
+        description: Number of clicks through to the property.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+      - name: sum_top_position
+        data_type: int64
+        description: Sum of the zero-based position of the property's best-ranking result across the impressions. Additive, so average position is derived as `sum_top_position / n_impressions + 1`.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+
   - name: dim_email_campaigns
     description: |
       One row per email campaign, where a campaign is the batch of messages sharing a source, subject, and campaign date. Transactional and test sends are campaigns too; `is_test` separates the test sends and the subject separates the weekly newsletter from transactional mail.
@@ -825,32 +1119,61 @@ models:
           - not_null
 
 unit_tests:
+  - name: dim_pages_classifies_page_types
+    description: Page type comes from the path prefix, legacy flat job paths are still job pages, and repeated paths collapse to one page.
+    model: dim_pages
+    given:
+      - input: ref("stg_google_search_console__url_impressions")
+        rows:
+          - {page_path: "/"}
+          - {page_path: "/jobs/"}
+          - {page_path: "/jobs/zocdoc/staff-analytics-engineer-2/"}
+          - {page_path: "/jobs/zocdoc/staff-analytics-engineer-2/"}
+          - {page_path: "/jobs/airbnb-senior-analytics-engineer/"}
+          - {page_path: "/organizations/"}
+          - {page_path: "/organizations/zocdoc/"}
+          - {page_path: "/landing-pages/dbt/"}
+          - {page_path: "/tags/"}
+          - {page_path: "/subscribe/"}
+          - {page_path: "/about/"}
+    expect:
+      rows:
+        - {page_path: "/", page_type: home}
+        - {page_path: "/jobs/", page_type: job_index}
+        - {page_path: "/jobs/zocdoc/staff-analytics-engineer-2/", page_type: job}
+        - {page_path: "/jobs/airbnb-senior-analytics-engineer/", page_type: job}
+        - {page_path: "/organizations/", page_type: organization_index}
+        - {page_path: "/organizations/zocdoc/", page_type: organization}
+        - {page_path: "/landing-pages/dbt/", page_type: landing_page}
+        - {page_path: "/tags/", page_type: tag}
+        - {page_path: "/subscribe/", page_type: subscribe}
+        - {page_path: "/about/", page_type: other}
+
   - name: dim_web_sessions_derives_channel_precedence
-    description: |
-      UTM beats a `$direct` referring domain, an AI assistant host beats the search engine it is hosted under, a webmail host beats the search engine it is hosted under, the site's own domain is internal rather than referral, and an event with no session identifier produces no session row.
+    description: Events in a session collapse to one row with lowercased UTM values; UTM beats a `$direct` referring domain, an AI assistant or webmail host beats the search engine it is hosted under, the site's own domain is internal rather than referral, and an event with no session identifier produces no session row.
     model: dim_web_sessions
     given:
       - input: ref("stg_posthog__events")
         rows:
-          - {session_id: newsletter, visitor_id: device_newsletter, event_ts: "2026-09-01 00:00:00+00", session_entry_page_path: /, session_entry_referring_domain: $direct, session_entry_utm_source: Newsletter, session_entry_utm_medium: Email, session_entry_utm_campaign: null}
-          - {session_id: newsletter, visitor_id: device_newsletter, event_ts: "2026-09-01 00:30:00+00", session_entry_page_path: /, session_entry_referring_domain: $direct, session_entry_utm_source: Newsletter, session_entry_utm_medium: Email, session_entry_utm_campaign: null}
-          - {session_id: paid, visitor_id: device_paid, event_ts: "2026-09-01 00:01:00+00", session_entry_page_path: /, session_entry_referring_domain: www.google.com, session_entry_utm_source: google, session_entry_utm_medium: cpc, session_entry_utm_campaign: null}
-          - {session_id: google_jobs, visitor_id: device_google_jobs, event_ts: "2026-09-01 00:02:00+00", session_entry_page_path: /, session_entry_referring_domain: $direct, session_entry_utm_source: google_jobs_apply, session_entry_utm_medium: organic, session_entry_utm_campaign: null}
-          - {session_id: ai, visitor_id: device_ai, event_ts: "2026-09-01 00:03:00+00", session_entry_page_path: /, session_entry_referring_domain: gemini.google.com, session_entry_utm_source: null, session_entry_utm_medium: null, session_entry_utm_campaign: null}
-          - {session_id: webmail, visitor_id: device_webmail, event_ts: "2026-09-01 00:04:00+00", session_entry_page_path: /, session_entry_referring_domain: mail.google.com, session_entry_utm_source: null, session_entry_utm_medium: null, session_entry_utm_campaign: null}
-          - {session_id: search, visitor_id: device_search, event_ts: "2026-09-01 00:05:00+00", session_entry_page_path: /, session_entry_referring_domain: www.google.com, session_entry_utm_source: null, session_entry_utm_medium: null, session_entry_utm_campaign: null}
-          - {session_id: internal, visitor_id: device_internal, event_ts: "2026-09-01 00:06:00+00", session_entry_page_path: /, session_entry_referring_domain: www.analyticsengineeringjobs.com, session_entry_utm_source: null, session_entry_utm_medium: null, session_entry_utm_campaign: null}
-          - {session_id: direct, visitor_id: device_direct, event_ts: "2026-09-01 00:07:00+00", session_entry_page_path: /, session_entry_referring_domain: $direct, session_entry_utm_source: null, session_entry_utm_medium: null, session_entry_utm_campaign: null}
-          - {session_id: referral, visitor_id: device_referral, event_ts: "2026-09-01 00:08:00+00", session_entry_page_path: /, session_entry_referring_domain: t.co, session_entry_utm_source: null, session_entry_utm_medium: null, session_entry_utm_campaign: null}
-          - {session_id: null, visitor_id: device_no_session, event_ts: "2026-09-01 01:00:00+00", session_entry_page_path: /, session_entry_referring_domain: $direct, session_entry_utm_source: null, session_entry_utm_medium: null, session_entry_utm_campaign: null}
+          - {session_id: "newsletter", event_ts: "2026-09-01 00:00:00+00", session_entry_referring_domain: "$direct", session_entry_utm_source: "Newsletter", session_entry_utm_medium: "Email"}
+          - {session_id: "newsletter", event_ts: "2026-09-01 00:30:00+00", session_entry_referring_domain: "$direct", session_entry_utm_source: "Newsletter", session_entry_utm_medium: "Email"}
+          - {session_id: "paid", event_ts: "2026-09-01 00:01:00+00", session_entry_referring_domain: "www.google.com", session_entry_utm_source: "google", session_entry_utm_medium: "cpc"}
+          - {session_id: "google_jobs", event_ts: "2026-09-01 00:02:00+00", session_entry_referring_domain: "$direct", session_entry_utm_source: "google_jobs_apply", session_entry_utm_medium: "organic"}
+          - {session_id: "ai", event_ts: "2026-09-01 00:03:00+00", session_entry_referring_domain: "gemini.google.com", session_entry_utm_source: null, session_entry_utm_medium: null}
+          - {session_id: "webmail", event_ts: "2026-09-01 00:04:00+00", session_entry_referring_domain: "mail.google.com", session_entry_utm_source: null, session_entry_utm_medium: null}
+          - {session_id: "search", event_ts: "2026-09-01 00:05:00+00", session_entry_referring_domain: "www.google.com", session_entry_utm_source: null, session_entry_utm_medium: null}
+          - {session_id: "internal", event_ts: "2026-09-01 00:06:00+00", session_entry_referring_domain: "www.analyticsengineeringjobs.com", session_entry_utm_source: null, session_entry_utm_medium: null}
+          - {session_id: "direct", event_ts: "2026-09-01 00:07:00+00", session_entry_referring_domain: "$direct", session_entry_utm_source: null, session_entry_utm_medium: null}
+          - {session_id: "referral", event_ts: "2026-09-01 00:08:00+00", session_entry_referring_domain: "t.co", session_entry_utm_source: null, session_entry_utm_medium: null}
+          - {session_id: null, event_ts: "2026-09-01 00:09:00+00", session_entry_referring_domain: "$direct", session_entry_utm_source: null, session_entry_utm_medium: null}
     expect:
       rows:
-        - {web_session_id: 5da9375c84289105aab6cdd2d38f72cb, source_session_id: newsletter, source: posthog, visitor_id: device_newsletter, session_started_ts: "2026-09-01 00:00:00+00", session_entry_page_path: /, session_entry_referring_domain: $direct, session_entry_utm_source: newsletter, session_entry_utm_medium: email, session_entry_utm_campaign: null, channel: email}
-        - {web_session_id: 47127c83addb4ea7209af049aa7ed399, source_session_id: paid, source: posthog, visitor_id: device_paid, session_started_ts: "2026-09-01 00:01:00+00", session_entry_page_path: /, session_entry_referring_domain: www.google.com, session_entry_utm_source: google, session_entry_utm_medium: cpc, session_entry_utm_campaign: null, channel: paid}
-        - {web_session_id: 6254e249dd1db78827b41e158b79dfdb, source_session_id: google_jobs, source: posthog, visitor_id: device_google_jobs, session_started_ts: "2026-09-01 00:02:00+00", session_entry_page_path: /, session_entry_referring_domain: $direct, session_entry_utm_source: google_jobs_apply, session_entry_utm_medium: organic, session_entry_utm_campaign: null, channel: organic_search}
-        - {web_session_id: ce524991008b1ee13539f9c1c3d26a0c, source_session_id: ai, source: posthog, visitor_id: device_ai, session_started_ts: "2026-09-01 00:03:00+00", session_entry_page_path: /, session_entry_referring_domain: gemini.google.com, session_entry_utm_source: null, session_entry_utm_medium: null, session_entry_utm_campaign: null, channel: ai_assistant}
-        - {web_session_id: 681d1e812c58fdc60284300945561627, source_session_id: webmail, source: posthog, visitor_id: device_webmail, session_started_ts: "2026-09-01 00:04:00+00", session_entry_page_path: /, session_entry_referring_domain: mail.google.com, session_entry_utm_source: null, session_entry_utm_medium: null, session_entry_utm_campaign: null, channel: email}
-        - {web_session_id: 285fe3e36149574edb27d7d7a28b7ddf, source_session_id: search, source: posthog, visitor_id: device_search, session_started_ts: "2026-09-01 00:05:00+00", session_entry_page_path: /, session_entry_referring_domain: www.google.com, session_entry_utm_source: null, session_entry_utm_medium: null, session_entry_utm_campaign: null, channel: organic_search}
-        - {web_session_id: ac16f3651a9bab7db4b47abd47f255b5, source_session_id: internal, source: posthog, visitor_id: device_internal, session_started_ts: "2026-09-01 00:06:00+00", session_entry_page_path: /, session_entry_referring_domain: www.analyticsengineeringjobs.com, session_entry_utm_source: null, session_entry_utm_medium: null, session_entry_utm_campaign: null, channel: internal}
-        - {web_session_id: ca3536ebc5701c19a5ea8f862978dde8, source_session_id: direct, source: posthog, visitor_id: device_direct, session_started_ts: "2026-09-01 00:07:00+00", session_entry_page_path: /, session_entry_referring_domain: $direct, session_entry_utm_source: null, session_entry_utm_medium: null, session_entry_utm_campaign: null, channel: direct}
-        - {web_session_id: 11795594f59594de536c39d265d25489, source_session_id: referral, source: posthog, visitor_id: device_referral, session_started_ts: "2026-09-01 00:08:00+00", session_entry_page_path: /, session_entry_referring_domain: t.co, session_entry_utm_source: null, session_entry_utm_medium: null, session_entry_utm_campaign: null, channel: referral}
+        - {source_session_id: "newsletter", session_started_ts: "2026-09-01 00:00:00+00", session_entry_utm_source: "newsletter", session_entry_utm_medium: "email", channel: email}
+        - {source_session_id: "paid", session_started_ts: "2026-09-01 00:01:00+00", session_entry_utm_source: "google", session_entry_utm_medium: "cpc", channel: paid}
+        - {source_session_id: "google_jobs", session_started_ts: "2026-09-01 00:02:00+00", session_entry_utm_source: "google_jobs_apply", session_entry_utm_medium: "organic", channel: organic_search}
+        - {source_session_id: "ai", session_started_ts: "2026-09-01 00:03:00+00", session_entry_utm_source: null, session_entry_utm_medium: null, channel: ai_assistant}
+        - {source_session_id: "webmail", session_started_ts: "2026-09-01 00:04:00+00", session_entry_utm_source: null, session_entry_utm_medium: null, channel: email}
+        - {source_session_id: "search", session_started_ts: "2026-09-01 00:05:00+00", session_entry_utm_source: null, session_entry_utm_medium: null, channel: organic_search}
+        - {source_session_id: "internal", session_started_ts: "2026-09-01 00:06:00+00", session_entry_utm_source: null, session_entry_utm_medium: null, channel: internal}
+        - {source_session_id: "direct", session_started_ts: "2026-09-01 00:07:00+00", session_entry_utm_source: null, session_entry_utm_medium: null, channel: direct}
+        - {source_session_id: "referral", session_started_ts: "2026-09-01 00:08:00+00", session_entry_utm_source: null, session_entry_utm_medium: null, channel: referral}
