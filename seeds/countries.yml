@@ -1,0 +1,12 @@
+version: 2
+
+seeds:
+  - name: countries
+    description: |
+      ISO 3166-1 countries with their two- and three-letter codes, a readable name, and continent. Codes and names come from the ISO 3166-1 list as packaged by `pycountry` 26.2.16, preferring the common name where ISO's official name is formal. Continents come from `bigquery-public-data.utility_us.country_code_iso`, with Åland Islands and Bonaire, Sint Eustatius and Saba filled in by hand because that table lacks them. Kosovo is added under its user-assigned codes `XK` and `XKK`, which both Google Search Console and PostHog GeoIP emit even though it is not in ISO 3166-1.
+    config:
+      column_types:
+        alpha_2_code: string
+        alpha_3_code: string
+        country_name: string
+        continent_name: string

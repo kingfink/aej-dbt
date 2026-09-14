@@ -29,6 +29,7 @@
 - Give each mart a single `_id` surrogate primary key; retain natural or composite identifiers as business keys.
 - Staging models may retain source-native names; intermediate and mart models should use canonical project names.
 - Use `stg_`, `int_`, `dim_`, and `fct_` prefixes consistently.
+- Prefix new count measures with `n_` and summed measures with `sum_`, such as `n_impressions` and `sum_position`. Existing columns such as `message_count` keep their names until their contracts change for another reason.
 
 ## Joins
 
@@ -115,6 +116,23 @@
 - Keep one row per source form submission in `fct_form_submissions`, with source-native submission IDs retained as business keys and one shared surrogate key generated in staging.
 - Link form submissions to known subscribers, jobs, and organizations with left joins. Retain unmatched submissions rather than discarding identity or context.
 - Keep unnecessary sensitive or operational fields such as IP addresses, user agents, and uploaded-file URLs out of marts.
+
+## Search performance modeling
+
+- Google Search Console is the source for organic search demand. The `sc-domain:analyticsengineeringjobs.com` domain property covers every host on the domain, so job URLs are in scope by construction.
+- Measure source freshness on `ExportLog.publish_time`, the only real delivery timestamp in the export. `data_date` is when searches happened, not when they landed.
+- Tune freshness to Google's publish lag. Dates land two to three days after they close, and the longest observed gap between publishes is 80 hours.
+- Aggregate the export to its own grain in staging rather than passing rows through. Google splits anonymized-query volume into several rows per key, so the measures are summed and a pass-through model has no unique key.
+- Keep `n_impressions`, `n_clicks`, and `sum_position` (or `sum_top_position`) as the only additive measures. Derive click-through rate and average position from summed numerators and denominators, never by averaging row-level rates. The export's positions are zero based, so average position is `sum_position / n_impressions + 1`.
+- Normalize URLs to a canonical site path in staging with the shared `normalize_page_path` macro, which strips scheme, host, query string, and fragment and enforces a trailing slash so tracking parameters and the `www` host collapse onto the site's own path.
+- Keep the normalized `page_path` as the natural key in staging, and generate `page_id` and classify pages with the shared `get_page_type` macro in `dim_pages`, the same way `dim_jobs` and `dim_organizations` own their keys. Facts resolve `page_id` by joining on `page_path`, so any source that normalizes paths the same way lands on the same page. Parse slugs in staging with `get_organization_slug` and `get_job_slug`, which return a slug only for current-scheme organization and job paths and null for every other path, whether given a repository file path or a site page path. Keep `job_id` and `organization_id` on the facts so they join straight to `dim_jobs` and `dim_organizations`.
+- Resolve countries to `dim_countries` by code in the mart. Normalize Search Console country codes to uppercase alpha-3 in staging; Google's `ZZZ` unknown region stays unresolved rather than getting a synthetic row.
+- Resolve job slugs only under the current `/jobs/{organization}/{job}/` scheme; legacy flat single-segment job paths are still `job` pages but stay unresolved rather than being guessed at, matching how legacy job links are treated in the email domain.
+- dbt unit tests target models rather than macros, so test shared path macros through native unit tests on the models that call them.
+- Keep the URL-level and property-level facts separate and never union them. Property-level impressions count one appearance per search even when several of the site's pages rank for it, so property totals are lower than URL totals rather than equal to them.
+- Carry the anonymization caveat in every mart and module description. Most impressions sit on rows where Google withheld the query, so a query drilldown describes a minority of volume and grouping by query silently drops the rest.
+- Collapse the export's Google Jobs appearance flags into one `search_appearance` categorical in staging. Google only sets them when a page qualified for the jobs experience, so they are the export's evidence that `JobPosting` markup is being parsed. The flags are mutually exclusive today; a source data test fails if Google ever sets both, since the categorical would then hide one.
+- Do not populate `validThrough` in site structured data just to fill the field. Google requires it only when a posting has a known expiration date, and deactivating a posting is already a documented way to expire a listing.
 
 ## Documentation and validation
 

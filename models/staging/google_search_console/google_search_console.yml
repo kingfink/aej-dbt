@@ -1,0 +1,164 @@
+version: 2
+
+sources:
+  - name: google_search_console
+    database: analytics-engineering-jobs
+    schema: searchconsole
+    loader: Google Search Console bulk export
+    description: |
+      Google Search Console bulk export for the `sc-domain:analyticsengineeringjobs.com` domain property. The property covers every host on the domain, so job URLs are in scope by construction. Google publishes each date two to three days after it closes and occasionally republishes a date, which `ExportLog.epoch_version` records.
+    tables:
+      - name: searchdata_url_impression
+      - name: searchdata_site_impression
+      - name: ExportLog
+        description: |
+          One row per exported date and namespace, carrying the time Google published the export. This is the only real delivery timestamp in the export, so freshness is measured here rather than against `data_date`, which is when searches happened rather than when they landed. Thresholds follow the observed cadence: publishes land about daily, and the longest observed gap is 80 hours.
+        config:
+          loaded_at_field: publish_time
+          freshness:
+            warn_after: {count: 48, period: hour}
+            error_after: {count: 96, period: hour}
+
+models:
+  - name: stg_google_search_console__url_impressions
+    description: |
+      Search Console URL-level performance aggregated to one row per date, page path, query, country, search type, device, and search appearance. Query strings, fragments, scheme, and host are stripped so tracking parameters and the `www` host collapse onto the canonical site path, and a trailing slash is enforced to match the site's own URLs. Google emits several rows per key, because anonymized-query volume arrives split into separate buckets, so metrics are summed rather than passed through one for one.
+    columns:
+      - name: url_impression_id
+        description: Stable surrogate key generated from the export's own grain.
+        tests:
+          - not_null
+          - unique
+      - name: date_day
+        description: UTC date the searches occurred on.
+        tests:
+          - not_null
+      - name: page_path
+        description: Site path the impressions were served for, normalized with the shared `normalize_page_path` macro. This is the natural key `dim_pages` generates `page_id` from, the same way `dim_jobs` keys on slugs.
+        tests:
+          - not_null
+      - name: organization_slug
+        description: Slug of the organization the path addresses, set on organization pages and on job pages under the current `/jobs/{organization}/{job}/` scheme. Parsed with the same macro as `stg_organizations`, so the two join on one definition.
+      - name: job_slug
+        description: Slug of the job the path addresses, set only under the current `/jobs/{organization}/{job}/` scheme. Legacy flat job paths stay null rather than being guessed at.
+      - name: query
+        description: Search query, null when Google withheld it because it was rare. Anonymized rows carry most impressions, so grouping by query silently drops most volume.
+      - name: country_code
+        description: Country the search came from, as an uppercase ISO 3166-1 alpha-3 code, or `ZZZ` when Google could not determine it.
+        tests:
+          - not_null
+      - name: search_type
+        description: Search surface the impression was served on, lowercased.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - image
+                  - news
+                  - web
+      - name: device
+        description: Device class the search came from, lowercased.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - desktop
+                  - mobile
+                  - tablet
+      - name: search_appearance
+        description: Google Jobs experience the impression was served in, null for a standard result. Google only sets these when the page qualified, so they double as evidence that `JobPosting` markup is being parsed. The export carries them as separate flags; they are mutually exclusive, which a data test on the source enforces.
+        tests:
+          - accepted_values:
+              arguments:
+                values:
+                  - job_details
+                  - job_listing
+      - name: n_impressions
+        description: Number of times the page appeared in results.
+        tests:
+          - not_null
+      - name: n_clicks
+        description: Number of clicks through to the page.
+        tests:
+          - not_null
+      - name: sum_position
+        description: Sum of zero-based result positions across the impressions. Kept additive so average position is derived from summed numerator and denominator; a readable average is `sum_position / n_impressions + 1`.
+        tests:
+          - not_null
+
+  - name: stg_google_search_console__site_impressions
+    description: |
+      Search Console property-level performance aggregated to one row per date, query, country, search type, and device. Property-level impressions count one appearance per search even when several of the site's pages rank for it, so these totals are not the URL-level totals rolled up and the two are never unioned.
+    columns:
+      - name: site_impression_id
+        description: Stable surrogate key generated from the export's own grain.
+        tests:
+          - not_null
+          - unique
+      - name: date_day
+        description: UTC date the searches occurred on.
+        tests:
+          - not_null
+      - name: query
+        description: Search query, null when Google withheld it because it was rare. Anonymized rows carry most impressions, so grouping by query silently drops most volume.
+      - name: country_code
+        description: Country the search came from, as an uppercase ISO 3166-1 alpha-3 code, or `ZZZ` when Google could not determine it.
+        tests:
+          - not_null
+      - name: search_type
+        description: Search surface the impression was served on, lowercased.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - image
+                  - news
+                  - web
+      - name: device
+        description: Device class the search came from, lowercased.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - desktop
+                  - mobile
+                  - tablet
+      - name: n_impressions
+        description: Number of times the property appeared in results.
+        tests:
+          - not_null
+      - name: n_clicks
+        description: Number of clicks through to the property.
+        tests:
+          - not_null
+      - name: sum_top_position
+        description: Sum of the zero-based position of the property's best-ranking result across the impressions. Kept additive; a readable average is `sum_top_position / n_impressions + 1`.
+        tests:
+          - not_null
+
+unit_tests:
+  - name: stg_google_search_console__url_impressions_normalizes_paths_and_slugs
+    description: URL variants of one page collapse onto one normalized path with summed measures, and slugs are set only on organization pages and current-scheme job pages.
+    model: stg_google_search_console__url_impressions
+    given:
+      - input: source("google_search_console", "searchdata_url_impression")
+        rows:
+          - {data_date: "2026-09-01", url: "https://analyticsengineeringjobs.com/jobs/zocdoc/staff-analytics-engineer-2/?utm_source=google_jobs_apply", impressions: 2, clicks: 1, sum_position: 4}
+          - {data_date: "2026-09-01", url: "https://www.analyticsengineeringjobs.com/jobs/zocdoc/staff-analytics-engineer-2/#apply", impressions: 1, clicks: 0, sum_position: 3}
+          - {data_date: "2026-09-01", url: "https://analyticsengineeringjobs.com/organizations/zocdoc", impressions: 1, clicks: 0, sum_position: 5}
+          - {data_date: "2026-09-01", url: "https://analyticsengineeringjobs.com/organizations/", impressions: 1, clicks: 0, sum_position: 6}
+          - {data_date: "2026-09-01", url: "https://analyticsengineeringjobs.com/jobs/airbnb-senior-analytics-engineer/", impressions: 1, clicks: 0, sum_position: 7}
+          - {data_date: "2026-09-01", url: "https://analyticsengineeringjobs.com/landing-pages/dbt/?q=", impressions: 1, clicks: 0, sum_position: 8}
+          - {data_date: "2026-09-01", url: "https://analyticsengineeringjobs.com", impressions: 1, clicks: 0, sum_position: 9}
+    expect:
+      rows:
+        - {page_path: "/jobs/zocdoc/staff-analytics-engineer-2/", organization_slug: zocdoc, job_slug: staff-analytics-engineer-2, n_impressions: 3, n_clicks: 1, sum_position: 7}
+        - {page_path: "/organizations/zocdoc/", organization_slug: zocdoc, job_slug: null, n_impressions: 1, n_clicks: 0, sum_position: 5}
+        - {page_path: "/organizations/", organization_slug: null, job_slug: null, n_impressions: 1, n_clicks: 0, sum_position: 6}
+        - {page_path: "/jobs/airbnb-senior-analytics-engineer/", organization_slug: null, job_slug: null, n_impressions: 1, n_clicks: 0, sum_position: 7}
+        - {page_path: "/landing-pages/dbt/", organization_slug: null, job_slug: null, n_impressions: 1, n_clicks: 0, sum_position: 8}
+        - {page_path: "/", organization_slug: null, job_slug: null, n_impressions: 1, n_clicks: 0, sum_position: 9}
