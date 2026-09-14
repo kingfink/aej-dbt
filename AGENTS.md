@@ -7,6 +7,7 @@
 - Use CTEs only for meaningful transformations, aggregation stages, or shared unioned data.
 - Select only required columns; avoid `select *`.
 - Use `union all`. If deduplication is required, perform it explicitly afterward with `select distinct`, grouping, or a window function.
+- Reference columns by ordinal position in statement-level `group by` and `order by`. Positions do not work inside a window function's `order by`, where a bare number is a constant rather than a column reference, so name the column there.
 - Put blank lines before and after `union all`.
 - Avoid redundant filters, columns, date derivatives, and intermediate calculations.
 - Add columns only for concrete current requirements; do not add speculative fields because they may be useful downstream.
@@ -66,14 +67,23 @@
   - `source_email_id`: provider-supplied message identifier.
   - `email_id`: warehouse message key.
   - `email_event_id`: individual provider event and recipient identifier.
+  - `email_campaign_id`: warehouse campaign key.
   - `subscriber_id`: warehouse subscriber key.
 - The grain of `dim_email_messages` is one row per `source` and `source_email_id`.
+- The grain of `dim_email_campaigns` is one row per `source`, subject, and campaign date. A message is one recipient send, so the campaign is the entity that corresponds to a newsletter issue.
+- Anchor the campaign date to the earliest sent event on a message, falling back to its earliest event of any type when the provider never delivered a sent event.
+- Transactional and test sends are campaigns too. Separate test sends with `is_test` rather than filtering them out upstream.
 - The grain of `dim_email_subscribers` is one row per normalized email address.
 - The grain of `fct_email_events` is one row per provider event and recipient.
 - Put message attributes in `dim_email_messages`.
+- Put campaign attributes in `dim_email_campaigns`.
 - Put subscriber attributes in `dim_email_subscribers`.
-- Keep `fct_email_events` focused on keys, event type, event timestamp, and structured event details.
-- Put sparse event attributes such as link URL, IP address, user agent, backfill status, and privacy or bot classification in the native JSON `email_event_details` column.
+- Keep `fct_email_events` focused on keys, event type, event timestamp, the clicked link destination, and structured event details.
+- Promote a sparse event attribute to its own column when it becomes a dimension of analysis rather than a detail to look up. The clicked link is promoted as `link_url`, `link_type`, and `job_id` because link performance is a question the marts answer directly; a second fact over the same grain is not warranted, since a click carries exactly one link.
+- Put remaining sparse event attributes such as IP address, user agent, backfill status, and privacy or bot classification in the native JSON `email_event_details` column.
+- Normalize and classify link destinations in `int_email_message_events` so marts stay flat and every consumer sees one definition. Strip the query string and fragment so campaign parameters and per-contact unsubscribe tokens collapse to one value per destination.
+- Gate link fields to click events. Providers occasionally attach a URL to other event types, and those are not click destinations.
+- Resolve links to `dim_jobs` only under the current job URL scheme. Legacy SendGrid-era job links used a flat single-segment path and stay unresolved rather than being guessed at.
 - Resend is the current and authoritative email provider.
 - Only Resend contact state determines `is_subscribed`.
 - A SendGrid-only address is not currently subscribed.
@@ -94,7 +104,13 @@
 ## Web engagement modeling
 
 - Netlify Forms is the authoritative source for current form submissions and submitted email addresses; Webflow form submissions are legacy history.
-- PostHog is the behavioral source for form impressions, skips, closes, and submit events, but it does not contain the submitted email address.
+- PostHog is the behavioral source for page views, outbound apply clicks, and the apply modal lifecycle, but it does not contain the submitted email address.
+- The grain of `fct_web_events` is one row per behavioral event. Keep behavioral marts at event grain rather than pre-aggregating, so distinct visitor counts stay correct over any date range.
+- Dedupe the PostHog batch export on the provider event identifier. It delivers at least once, and duplicates inflate counts by several percent.
+- Restrict behavioral models to production hosts. Local development, deploy preview, and preview worker traffic otherwise counts as real visits.
+- `visitor_id` is a device identifier, not a person. Person profiles are disabled, so distinct visitor counts are a floor and repeat visitors across devices are undercounted.
+- Filter behavioral marts to the event types a question needs, and keep every captured event type in staging so widening a mart stays a one-line change.
+- Treat PostHog as consent-gated and therefore a floor on traffic, not total traffic. Do not blend GA4 into behavioral marts to extend history; GA4 captures a materially smaller and differently biased share of the same traffic, so a union reads as a traffic change at the seam.
 - Treat PostHog distinct and session identifiers on form submissions as nullable, consent-gated join keys. Do not require them or use them to discard submissions from visitors without PostHog consent.
 - Keep one row per source form submission in `fct_form_submissions`, with source-native submission IDs retained as business keys and one shared surrogate key generated in staging.
 - Link form submissions to known subscribers, jobs, and organizations with left joins. Retain unmatched submissions rather than discarding identity or context.

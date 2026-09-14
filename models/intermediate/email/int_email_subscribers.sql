@@ -17,7 +17,7 @@ with
                 if(subscriber_event_type = "unsubscribed", event_ts, null)
             ) as max_unsubscribed_ts
         from {{ ref("int_email_subscription_events") }}
-        group by subscriber_id, email_address
+        group by 1, 2
     )
 
 select

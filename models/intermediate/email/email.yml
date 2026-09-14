@@ -53,10 +53,61 @@ models:
                 values:
                   - bot_or_security_scanner
                   - privacy_or_image_proxy
+      - name: link_url
+        description: |
+          Clicked destination URL with the query string and fragment removed, so campaign parameters and per-contact unsubscribe tokens collapse to one value per destination. Populated only for click events; providers occasionally attach a URL to other event types and those are dropped here.
+      - name: link_type
+        description: Destination category of the clicked link.
+        tests:
+          - accepted_values:
+              arguments:
+                values:
+                  - external
+                  - job_page
+                  - site
+                  - unsubscribe
+      - name: link_organization_slug
+        description: Organization slug parsed from a clicked job link under the current job URL scheme.
+      - name: link_job_slug
+        description: Job slug parsed from a clicked job link under the current job URL scheme.
+      - name: link_utm_campaign
+        description: Raw `utm_campaign` parameter value from the clicked link, resolved to a campaign name at the message and campaign grains.
   - name: int_email_messages
-    description: One row per provider email message across SendGrid and Resend.
+    description: One row per provider email message across SendGrid and Resend, keyed to the campaign the message was part of.
     columns:
       - name: email_id
+        tests:
+          - not_null
+          - unique
+      - name: email_campaign_id
+        description: Campaign key generated from the source, subject, and campaign date.
+        tests:
+          - not_null
+      - name: source
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - resend
+                  - sendgrid
+      - name: source_email_id
+        tests:
+          - not_null
+      - name: campaign_name
+        description: Campaign name carried up from the `utm_campaign` parameter on the message's tracked links.
+      - name: first_sent_ts
+        description: Earliest sent-event timestamp for the message. Null when the provider never delivered a sent event, which happens for suppressed recipients and for the oldest SendGrid history.
+      - name: first_event_ts
+        description: Earliest event timestamp of any type for the message, used to anchor the campaign date when no sent event exists.
+        tests:
+          - not_null
+
+  - name: int_email_campaigns
+    description: |
+      One row per email campaign, where a campaign is the batch of messages sharing a source, subject, and campaign date. Transactional sends and test sends are campaigns too; `is_test` separates the test sends and the subject separates the weekly newsletter from transactional mail.
+    columns:
+      - name: email_campaign_id
         tests:
           - not_null
           - unique
@@ -68,7 +119,17 @@ models:
                 values:
                   - resend
                   - sendgrid
-      - name: source_email_id
+      - name: campaign_name
+        description: |
+          Campaign name taken from the `utm_campaign` parameter on the campaign's tracked links, such as `weekly_jobs_2026_08_11`. Null for campaigns whose links carry no campaign parameter and for campaigns that were never clicked.
+      - name: campaign_date
+        tests:
+          - not_null
+      - name: message_count
+        description: Number of provider messages in the campaign, which is one per recipient send.
+        tests:
+          - not_null
+      - name: is_test
         tests:
           - not_null
 
