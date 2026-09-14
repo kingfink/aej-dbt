@@ -82,6 +82,7 @@ exposures:
       - ref("dim_jobs")
       - ref("fct_email_events")
       - ref("fct_form_submissions")
+      - ref("fct_search_performance_daily")
       - ref("fct_web_events")
     owner:
       name: Tim Finkel
@@ -94,6 +95,7 @@ exposures:
     depends_on:
       - ref("dim_organizations")
       - ref("fct_form_submissions")
+      - ref("fct_search_performance_daily")
       - ref("fct_web_events")
     owner:
       name: Tim Finkel
@@ -107,6 +109,30 @@ exposures:
       - ref("dim_web_sessions")
       - ref("fct_form_submissions")
       - ref("fct_web_events")
+    owner:
+      name: Tim Finkel
+
+  - name: steep_dim_pages
+    label: "Steep module: Pages"
+    type: analysis
+    maturity: low
+    description: One row per site page, keyed on the normalized page path and classified by page type, so on-site web events and search performance can be split by the same page.
+    depends_on:
+      - ref("dim_pages")
+      - ref("fct_search_performance_daily")
+      - ref("fct_web_events")
+    owner:
+      name: Tim Finkel
+
+  - name: steep_dim_countries
+    label: "Steep module: Countries"
+    type: analysis
+    maturity: low
+    description: One row per ISO 3166-1 country plus Kosovo, so URL-level and property-level search performance can be split by country.
+    depends_on:
+      - ref("dim_countries")
+      - ref("fct_search_performance_daily")
+      - ref("fct_search_performance_site_daily")
     owner:
       name: Tim Finkel
 
@@ -132,8 +158,34 @@ exposures:
     depends_on:
       - ref("dim_jobs")
       - ref("dim_organizations")
+      - ref("dim_pages")
       - ref("dim_web_sessions")
       - ref("fct_web_events")
+    owner:
+      name: Tim Finkel
+
+  - name: steep_fct_search_performance
+    label: "Steep module: Search Performance"
+    type: analysis
+    maturity: low
+    description: One row per date, page, query, country, search type, device, and Google Jobs search appearance from the Search Console URL-level export, with impressions, clicks, click-through rate, and average position split by page, country, job, and organization. Kept separate from the property-level module.
+    depends_on:
+      - ref("dim_countries")
+      - ref("dim_jobs")
+      - ref("dim_organizations")
+      - ref("dim_pages")
+      - ref("fct_search_performance_daily")
+    owner:
+      name: Tim Finkel
+
+  - name: steep_fct_search_performance_site
+    label: "Steep module: Site Search Performance"
+    type: analysis
+    maturity: low
+    description: One row per date, query, country, search type, and device from the Search Console property-level export, with best-result average position. Property totals are lower than URL-level totals, so this module is never blended with Search Performance.
+    depends_on:
+      - ref("dim_countries")
+      - ref("fct_search_performance_site_daily")
     owner:
       name: Tim Finkel
 
