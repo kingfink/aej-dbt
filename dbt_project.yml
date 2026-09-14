@@ -60,6 +60,14 @@ models:
         base_ga4__users:
           +full_refresh: false # see above under base_ga4__events
 
+snapshots:
+  aej:
+    analytics_engineering_jobs:
+      +group: site_content
+      +strategy: timestamp
+      +unique_key: file_path
+      +updated_at: modified_at
+
 vars:
   ga4:
     source_project: "analytics-engineering-jobs"
