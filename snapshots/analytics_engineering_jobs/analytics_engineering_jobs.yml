@@ -1,0 +1,42 @@
+version: 2
+
+snapshots:
+  - name: snp_jobs
+    description: |
+      History of job page frontmatter, one row per version of each job file. The loader merges on `file_path` and overwrites each row in place, so this snapshot is the only warehouse record of how a job's attributes, such as `featured`, `active`, title, or salary, changed over time. History begins when the snapshot was first deployed. A new version is recorded whenever `modified_at` advances, which includes commits that change only the page body, so consecutive versions can carry identical frontmatter.
+    columns:
+      - name: file_path
+        description: Repository path of the job markdown file, the natural key of the source table.
+        tests:
+          - not_null
+          - unique:
+              config:
+                where: dbt_valid_to is null
+      - name: frontmatter
+        description: Parsed frontmatter of this version as native JSON.
+        tests:
+          - not_null
+      - name: modified_at
+        description: Author timestamp of the latest commit touching the file in this version, taken from `git log --follow`. Drives the timestamp strategy, so `dbt_valid_from` is when the change was authored rather than when it was loaded.
+        tests:
+          - not_null
+
+  - name: snp_organizations
+    description: |
+      History of organization page frontmatter, one row per version of each organization file. The loader merges on `file_path` and overwrites each row in place, so this snapshot is the only warehouse record of how an organization's attributes changed over time. History begins when the snapshot was first deployed. A new version is recorded whenever `modified_at` advances, which includes commits that change only the page body, so consecutive versions can carry identical frontmatter.
+    columns:
+      - name: file_path
+        description: Repository path of the organization markdown file, the natural key of the source table.
+        tests:
+          - not_null
+          - unique:
+              config:
+                where: dbt_valid_to is null
+      - name: frontmatter
+        description: Parsed frontmatter of this version as native JSON.
+        tests:
+          - not_null
+      - name: modified_at
+        description: Author timestamp of the latest commit touching the file in this version, taken from `git log --follow`. Drives the timestamp strategy, so `dbt_valid_from` is when the change was authored rather than when it was loaded.
+        tests:
+          - not_null

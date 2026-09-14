@@ -104,6 +104,9 @@
 
 - Treat jobs and organizations as site-content entities rather than engagement events.
 - Keep site-content models separate from email and future behavioral, web engagement, and search datasets unless a downstream model intentionally combines those domains.
+- The site-content loader merges on `file_path` and overwrites each row in place, so `snp_jobs` and `snp_organizations` are the only warehouse history of job and organization attributes. Snapshot the source tables rather than staging, so history keeps the raw frontmatter and staging parsing can change without rewriting it.
+- Use the timestamp strategy on `modified_at`, the author timestamp of the latest commit touching the file. It records when a change was authored rather than when it was loaded, at the cost of also recording a version for body-only commits whose frontmatter is unchanged.
+- The loader never deletes rows for removed or renamed files, so a file that no longer exists in the site repository keeps its last row in the source and its current version in the snapshot.
 
 ## Web engagement modeling
 
