@@ -400,20 +400,7 @@ models:
                 field: organization_id
       - name: query
         data_type: string
-        description: Search query, null on anonymized rows.
-      - name: is_anonymized_query
-        data_type: bool
-        description: Whether Google withheld the query because it was rare. Anonymized rows carry the majority of impressions, so grouping by query silently drops most volume.
-        constraints:
-          - type: not_null
-        tests:
-          - not_null
-          - accepted_values:
-              arguments:
-                values:
-                  - true
-                  - false
-                quote: false
+        description: Search query, null when Google withheld it because it was rare. Anonymized rows carry most impressions, so grouping by query silently drops most volume.
       - name: country
         data_type: string
         description: Country the search came from, as a lowercase ISO 3166-1 alpha-3 code.
@@ -501,20 +488,7 @@ models:
           - not_null
       - name: query
         data_type: string
-        description: Search query, null on anonymized rows.
-      - name: is_anonymized_query
-        data_type: bool
-        description: Whether Google withheld the query because it was rare.
-        constraints:
-          - type: not_null
-        tests:
-          - not_null
-          - accepted_values:
-              arguments:
-                values:
-                  - true
-                  - false
-                quote: false
+        description: Search query, null when Google withheld it because it was rare. Anonymized rows carry most impressions, so grouping by query silently drops most volume.
       - name: country
         data_type: string
         description: Country the search came from, as a lowercase ISO 3166-1 alpha-3 code.

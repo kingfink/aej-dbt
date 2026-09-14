@@ -6,7 +6,6 @@ select
     j.job_id,
     coalesce(j.organization_id, o.organization_id) as organization_id,
     u.query,
-    u.is_anonymized_query,
     u.country,
     u.device,
     u.search_type,

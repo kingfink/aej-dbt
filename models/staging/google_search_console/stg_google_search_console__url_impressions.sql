@@ -4,7 +4,6 @@ with
             data_date as date_day,
             {{ normalize_page_path("url") }} as canonical_path,
             query,
-            is_anonymized_query,
             country,
             lower(search_type) as search_type,
             lower(device) as device,
@@ -27,7 +26,6 @@ select
                 "date_day",
                 "canonical_path",
                 "query",
-                "is_anonymized_query",
                 "country",
                 "search_type",
                 "device",
@@ -47,7 +45,6 @@ select
         canonical_path like "/jobs/%/%/", {{ get_job_slug("canonical_path") }}, null
     ) as job_slug,
     query,
-    is_anonymized_query,
     country,
     search_type,
     device,
@@ -56,4 +53,4 @@ select
     sum(clicks) as n_clicks,
     sum(sum_position) as sum_position
 from url_impressions
-group by 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12
+group by 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11
