@@ -1,12 +1,11 @@
 select
     u.url_impression_id,
     u.date_day,
-    u.canonical_path,
-    u.page_type,
+    u.page_id,
     j.job_id,
     coalesce(j.organization_id, o.organization_id) as organization_id,
+    c.country_id,
     u.query,
-    u.country,
     u.device,
     u.search_type,
     u.search_appearance,
@@ -20,3 +19,4 @@ left join
     and u.job_slug = j.job_slug
 left join
     {{ ref("dim_organizations") }} as o on u.organization_slug = o.organization_slug
+left join {{ ref("dim_countries") }} as c on u.country_code = c.alpha_3_code

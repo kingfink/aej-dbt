@@ -22,7 +22,7 @@ sources:
 models:
   - name: stg_google_search_console__url_impressions
     description: |
-      Search Console URL-level performance aggregated to one row per date, canonical page path, query, country, search type, device, and search appearance. Query strings, fragments, scheme, and host are stripped so tracking parameters and the `www` host collapse onto the canonical site path, and a trailing slash is enforced to match the site's own URLs. Google emits several rows per key, because anonymized-query volume arrives split into separate buckets, so metrics are summed rather than passed through one for one.
+      Search Console URL-level performance aggregated to one row per date, page path, query, country, search type, device, and search appearance. Query strings, fragments, scheme, and host are stripped so tracking parameters and the `www` host collapse onto the canonical site path, and a trailing slash is enforced to match the site's own URLs. Google emits several rows per key, because anonymized-query volume arrives split into separate buckets, so metrics are summed rather than passed through one for one.
     columns:
       - name: url_impression_id
         description: Stable surrogate key generated from the export's own grain.
@@ -33,34 +33,22 @@ models:
         description: UTC date the searches occurred on.
         tests:
           - not_null
-      - name: canonical_path
-        description: Site path the impressions were served for, with the query string and fragment removed and a trailing slash enforced.
+      - name: page_id
+        description: Stable surrogate key generated from the normalized page path, so any model that normalizes a path with `normalize_page_path` produces the same key for the same page.
         tests:
           - not_null
-      - name: page_type
-        description: Kind of page the path addresses, classified by the shared `get_page_type` macro so every model that carries a site path uses one definition.
+      - name: page_path
+        description: Site path the impressions were served for, normalized with the shared `normalize_page_path` macro.
         tests:
           - not_null
-          - accepted_values:
-              arguments:
-                values:
-                  - home
-                  - job
-                  - job_index
-                  - landing_page
-                  - organization
-                  - organization_index
-                  - other
-                  - subscribe
-                  - tag
       - name: organization_slug
         description: Slug of the organization the path addresses, set on organization pages and on job pages under the current `/jobs/{organization}/{job}/` scheme. Parsed with the same macro as `stg_organizations`, so the two join on one definition.
       - name: job_slug
         description: Slug of the job the path addresses, set only under the current `/jobs/{organization}/{job}/` scheme. Legacy flat job paths stay null rather than being guessed at.
       - name: query
         description: Search query, null when Google withheld it because it was rare. Anonymized rows carry most impressions, so grouping by query silently drops most volume.
-      - name: country
-        description: Country the search came from, as a lowercase ISO 3166-1 alpha-3 code.
+      - name: country_code
+        description: Country the search came from, as an uppercase ISO 3166-1 alpha-3 code, or `ZZZ` when Google could not determine it.
         tests:
           - not_null
       - name: search_type
@@ -119,8 +107,8 @@ models:
           - not_null
       - name: query
         description: Search query, null when Google withheld it because it was rare. Anonymized rows carry most impressions, so grouping by query silently drops most volume.
-      - name: country
-        description: Country the search came from, as a lowercase ISO 3166-1 alpha-3 code.
+      - name: country_code
+        description: Country the search came from, as an uppercase ISO 3166-1 alpha-3 code, or `ZZZ` when Google could not determine it.
         tests:
           - not_null
       - name: search_type

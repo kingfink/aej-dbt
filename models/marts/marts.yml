@@ -335,9 +335,107 @@ models:
         tests:
           - not_null
 
+  - name: dim_pages
+    description: |
+      One row per site page, keyed on the path normalized with the shared `normalize_page_path` macro and classified with `get_page_type`. Pages currently come from the Search Console URL export, so a page appears once Google has served it in results; PostHog paths join the same dimension once `fct_web_events` normalizes paths with the same macro. Job and organization keys stay on the facts rather than here, so they join straight to `dim_jobs` and `dim_organizations`.
+    config:
+      group: web_engagement
+    columns:
+      - name: page_id
+        data_type: string
+        description: Stable surrogate key generated from the normalized page path.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+          - unique
+      - name: page_path
+        data_type: string
+        description: Site path with scheme, host, query string, and fragment removed and exactly one trailing slash.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+          - unique
+      - name: page_type
+        data_type: string
+        description: Kind of page the path addresses. Legacy flat job paths are `job` pages that resolve to no job.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - home
+                  - job
+                  - job_index
+                  - landing_page
+                  - organization
+                  - organization_index
+                  - other
+                  - subscribe
+                  - tag
+
+  - name: dim_countries
+    description: |
+      One row per ISO 3166-1 country plus Kosovo, from the `countries` seed. Sources that emit different code formats resolve to the same row: Search Console uses three-letter codes and PostHog GeoIP uses two-letter codes.
+    config:
+      group: web_engagement
+    columns:
+      - name: country_id
+        data_type: string
+        description: Stable surrogate key generated from the three-letter country code.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+          - unique
+      - name: alpha_3_code
+        data_type: string
+        description: Uppercase ISO 3166-1 alpha-3 code, or `XKK` for Kosovo.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+          - unique
+      - name: alpha_2_code
+        data_type: string
+        description: Uppercase ISO 3166-1 alpha-2 code, or `XK` for Kosovo.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+          - unique
+      - name: country_name
+        data_type: string
+        description: Readable country name, using the common name where ISO's official name is formal.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+          - unique
+      - name: continent_name
+        data_type: string
+        description: Continent the country belongs to.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - Africa
+                  - Antarctica
+                  - Asia
+                  - Europe
+                  - North America
+                  - Oceania
+                  - South America
+
   - name: fct_search_performance_daily
     description: |
-      One row per date, canonical page path, query, country, search type, device, and Google Jobs search appearance, from the Search Console URL-level bulk export. Ratios must be derived from the summed measures: click-through rate is `n_clicks / n_impressions` and average position is `sum_position / n_impressions + 1`, because the export's positions are zero based. Most impressions sit on rows where Google withheld the query, so any query drilldown describes a minority of volume. Pages are classified and resolved to jobs and organizations where the path carries them, so search demand slices by the same dimensions as on-site behavior. History begins 2026-04-19, and Google publishes each date two to three days late.
+      One row per date, page, query, country, search type, device, and Google Jobs search appearance, from the Search Console URL-level bulk export. Ratios must be derived from the summed measures: click-through rate is `n_clicks / n_impressions` and average position is `sum_position / n_impressions + 1`, because the export's positions are zero based. Most impressions sit on rows where Google withheld the query, so any query drilldown describes a minority of volume. Page attributes live in `dim_pages` and country attributes in `dim_countries`, and job and organization pages resolve to `dim_jobs` and `dim_organizations`, so search demand slices by the same dimensions as on-site behavior. History begins 2026-04-19, and Google publishes each date two to three days late.
     config:
       group: web_engagement
     columns:
@@ -356,32 +454,17 @@ models:
           - type: not_null
         tests:
           - not_null
-      - name: canonical_path
+      - name: page_id
         data_type: string
-        description: Site path the impressions were served for, with the query string and fragment removed and a trailing slash enforced.
+        description: Page dimension key for the page the impressions were served for.
         constraints:
           - type: not_null
         tests:
           - not_null
-      - name: page_type
-        data_type: string
-        description: Kind of page the path addresses, classified by the shared `get_page_type` macro. Legacy flat job paths are `job` pages that resolve to no job.
-        constraints:
-          - type: not_null
-        tests:
-          - not_null
-          - accepted_values:
+          - relationships:
               arguments:
-                values:
-                  - home
-                  - job
-                  - job_index
-                  - landing_page
-                  - organization
-                  - organization_index
-                  - other
-                  - subscribe
-                  - tag
+                to: ref("dim_pages")
+                field: page_id
       - name: job_id
         data_type: string
         description: Job dimension key when the path is a job detail page for a known job.
@@ -398,16 +481,17 @@ models:
               arguments:
                 to: ref("dim_organizations")
                 field: organization_id
+      - name: country_id
+        data_type: string
+        description: Country dimension key for where the search came from. Null when Google could not determine the country, which it reports as `ZZZ`.
+        tests:
+          - relationships:
+              arguments:
+                to: ref("dim_countries")
+                field: country_id
       - name: query
         data_type: string
         description: Search query, null when Google withheld it because it was rare. Anonymized rows carry most impressions, so grouping by query silently drops most volume.
-      - name: country
-        data_type: string
-        description: Country the search came from, as a lowercase ISO 3166-1 alpha-3 code.
-        constraints:
-          - type: not_null
-        tests:
-          - not_null
       - name: device
         data_type: string
         description: Device class the search came from.
@@ -486,16 +570,17 @@ models:
           - type: not_null
         tests:
           - not_null
+      - name: country_id
+        data_type: string
+        description: Country dimension key for where the search came from. Null when Google could not determine the country, which it reports as `ZZZ`.
+        tests:
+          - relationships:
+              arguments:
+                to: ref("dim_countries")
+                field: country_id
       - name: query
         data_type: string
         description: Search query, null when Google withheld it because it was rare. Anonymized rows carry most impressions, so grouping by query silently drops most volume.
-      - name: country
-        data_type: string
-        description: Country the search came from, as a lowercase ISO 3166-1 alpha-3 code.
-        constraints:
-          - type: not_null
-        tests:
-          - not_null
       - name: device
         data_type: string
         description: Device class the search came from.

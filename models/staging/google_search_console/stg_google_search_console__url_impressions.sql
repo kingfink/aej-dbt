@@ -2,9 +2,9 @@ with
     url_impressions as (
         select
             data_date as date_day,
-            {{ normalize_page_path("url") }} as canonical_path,
+            {{ normalize_page_path("url") }} as page_path,
             query,
-            country,
+            upper(country) as country_code,
             lower(search_type) as search_type,
             lower(device) as device,
             case
@@ -24,9 +24,9 @@ select
         dbt_utils.generate_surrogate_key(
             [
                 "date_day",
-                "canonical_path",
+                "page_path",
                 "query",
-                "country",
+                "country_code",
                 "search_type",
                 "device",
                 "search_appearance",
@@ -34,18 +34,16 @@ select
         )
     }} as url_impression_id,
     date_day,
-    canonical_path,
-    {{ get_page_type("canonical_path") }} as page_type,
+    {{ dbt_utils.generate_surrogate_key(["page_path"]) }} as page_id,
+    page_path,
     if(
-        canonical_path like "/organizations/%" or canonical_path like "/jobs/%/%/",
-        {{ get_organization_slug("canonical_path") }},
+        page_path like "/organizations/%" or page_path like "/jobs/%/%/",
+        {{ get_organization_slug("page_path") }},
         null
     ) as organization_slug,
-    if(
-        canonical_path like "/jobs/%/%/", {{ get_job_slug("canonical_path") }}, null
-    ) as job_slug,
+    if(page_path like "/jobs/%/%/", {{ get_job_slug("page_path") }}, null) as job_slug,
     query,
-    country,
+    country_code,
     search_type,
     device,
     search_appearance,

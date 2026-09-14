@@ -4,7 +4,7 @@ select
             [
                 "data_date",
                 "query",
-                "country",
+                "upper(country)",
                 "lower(search_type)",
                 "lower(device)",
             ]
@@ -12,7 +12,7 @@ select
     }} as site_impression_id,
     data_date as date_day,
     query,
-    country,
+    upper(country) as country_code,
     lower(search_type) as search_type,
     lower(device) as device,
     sum(impressions) as n_impressions,
