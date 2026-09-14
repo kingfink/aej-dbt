@@ -40,6 +40,7 @@ select
     j.job_id,
     coalesce(j.organization_id, o.organization_id) as organization_id,
     fs.email_address,
+    ws.session_id,
     fs.posthog_distinct_id,
     fs.posthog_session_id,
     fs.form_submission_details,
@@ -53,3 +54,5 @@ left join
     and fs.job_slug = j.job_slug
 left join
     {{ ref("dim_organizations") }} as o on fs.organization_slug = o.organization_slug
+left join
+    {{ ref("dim_web_sessions") }} as ws on fs.posthog_session_id = ws.source_session_id

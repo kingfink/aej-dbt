@@ -29,6 +29,24 @@ select
     nullif(json_value(properties, "$.url"), "") as outbound_url,
     nullif(json_value(properties, "$.link_text"), "") as link_text,
     nullif(json_value(properties, "$.click_method"), "") as click_method,
+    nullif(
+        json_value(properties, '$."$session_entry_referrer"'), ""
+    ) as session_referrer,
+    nullif(
+        json_value(properties, '$."$session_entry_referring_domain"'), ""
+    ) as session_referring_domain,
+    nullif(
+        json_value(properties, '$."$session_entry_pathname"'), ""
+    ) as session_page_path,
+    lower(
+        nullif(json_value(properties, '$."$session_entry_utm_source"'), "")
+    ) as session_utm_source,
+    lower(
+        nullif(json_value(properties, '$."$session_entry_utm_medium"'), "")
+    ) as session_utm_medium,
+    nullif(
+        json_value(properties, '$."$session_entry_utm_campaign"'), ""
+    ) as session_utm_campaign,
     bq_ingested_timestamp as loaded_ts
 from {{ source("posthog", "events") }}
 where
