@@ -52,4 +52,6 @@ where
     event is not null
     and json_value(properties, '$."$host"')
     in ("analyticsengineeringjobs.com", "www.analyticsengineeringjobs.com")
-qualify row_number() over (partition by uuid order by bq_ingested_timestamp desc) = 1
+qualify
+    row_number() over (partition by timestamp, uuid order by bq_ingested_timestamp desc)
+    = 1
