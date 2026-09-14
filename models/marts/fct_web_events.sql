@@ -7,6 +7,7 @@ select
     e.visitor_id,
     s.session_id,
     e.session_id as source_session_id,
+    p.page_id,
     e.page_path,
     j.job_id,
     coalesce(j.organization_id, o.organization_id) as organization_id,
@@ -22,6 +23,7 @@ select
     ) as event_details
 from {{ ref("stg_posthog__events") }} as e
 left join {{ ref("dim_web_sessions") }} as s on e.session_id = s.source_session_id
+left join {{ ref("dim_pages") }} as p on e.page_path = p.page_path
 left join
     {{ ref("dim_jobs") }} as j
     on e.organization_slug = j.organization_slug

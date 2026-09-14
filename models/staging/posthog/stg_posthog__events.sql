@@ -1,3 +1,8 @@
+{%- set pathname = "nullif(json_value(properties, '$.\"$pathname\"'), '')" -%}
+{%- set session_pathname = (
+    "nullif(json_value(properties, '$.\"$session_entry_pathname\"'), '')"
+) -%}
+
 select
     {{ dbt_utils.generate_surrogate_key(["'posthog'", "uuid"]) }} as event_id,
     uuid as source_event_id,
@@ -13,18 +18,14 @@ select
     timestamp as event_ts,
     distinct_id as visitor_id,
     json_value(properties, '$."$session_id"') as session_id,
-    json_value(properties, '$."$pathname"') as page_path,
+    {{ normalize_page_path(pathname) }} as page_path,
     coalesce(
         nullif(json_value(properties, "$.org_slug"), ""),
-        regexp_extract(
-            json_value(properties, '$."$pathname"'), r"^/jobs/([^/]+)/[^/]+/?$"
-        )
+        {{ get_organization_slug(normalize_page_path(pathname)) }}
     ) as organization_slug,
     coalesce(
         nullif(json_value(properties, "$.job_slug"), ""),
-        regexp_extract(
-            json_value(properties, '$."$pathname"'), r"^/jobs/[^/]+/([^/]+)/?$"
-        )
+        {{ get_job_slug(normalize_page_path(pathname)) }}
     ) as job_slug,
     nullif(json_value(properties, "$.url"), "") as outbound_url,
     nullif(json_value(properties, "$.link_text"), "") as link_text,
@@ -35,9 +36,7 @@ select
     nullif(
         json_value(properties, '$."$session_entry_referring_domain"'), ""
     ) as session_referring_domain,
-    nullif(
-        json_value(properties, '$."$session_entry_pathname"'), ""
-    ) as session_page_path,
+    {{ normalize_page_path(session_pathname) }} as session_page_path,
     lower(
         nullif(json_value(properties, '$."$session_entry_utm_source"'), "")
     ) as session_utm_source,
