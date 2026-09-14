@@ -118,8 +118,8 @@
 - Keep unnecessary sensitive or operational fields such as IP addresses, user agents, and uploaded-file URLs out of marts.
 - The grain of `dim_web_sessions` is one row per PostHog session. PostHog stamps session entry attribution on every event and it is constant within a session, so the dimension aggregates over the session identifier without an entry event selection rule.
 - Resolve `session_id` onto `fct_web_events` and `fct_form_submissions` by left joining `dim_web_sessions` on the natural session identifier. A null `session_id` means no session context, either a submission from before `posthog_session_id` capture was complete in 2026-08 or a visitor without PostHog consent, and it is never direct traffic.
-- Derive `channel` from UTM parameters before the referring domain, because email clients strip the referrer and newsletter traffic otherwise reads as direct. Classify on the referring domain rather than `$session_entry_search_engine`, which PostHog sets to `google` for both Gemini and Gmail.
-- Keep `internal` distinct from `direct`. A session whose entry referrer is the site's own domain comes from the 30 minute session window expiring mid-visit, not from a direct arrival.
+- Derive `channel` with the shared `get_channel` macro, a port of PostHog's default channel type, which builds on GA4's default channel groups, rather than a bespoke taxonomy. Keep PostHog's source, medium, and referring domain definitions vendored unchanged in the `channel_definitions` seed and refresh them from PostHog rather than hand-maintaining host lists. Classify on UTM values and the referring domain rather than `$session_entry_search_engine`, which PostHog sets to `google` for both Gemini and Gmail.
+- Limit local deviations from the PostHog port to the documented rules in `get_channel`: UTM medium `organic` is organic search, as in GA4, so Google Jobs apply traffic does not read as direct; and a referral from the site's own domain is `internal`, because it comes from the 30 minute session window expiring mid-visit rather than from a real referral or a direct arrival.
 
 ## Search performance modeling
 

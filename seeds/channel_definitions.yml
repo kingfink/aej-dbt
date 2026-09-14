@@ -1,0 +1,74 @@
+version: 2
+
+seeds:
+  - name: channel_definitions
+    description: |
+      PostHog's channel definitions, vendored unchanged from `posthog/models/channel_type/channel_definitions.json` at PostHog commit `f5207b16c917518b198d49257ed371fb60efc498` under PostHog's MIT license. One row per source domain or UTM medium, with the channel it resolves to when the traffic is paid or organic. `get_channel` reads it through `dim_web_sessions` to classify sessions the same way PostHog's `$channel_type` does. PostHog's sixth column, which only marks app package names, is omitted because the lookups never use it. Refresh from PostHog rather than editing rows by hand; local classification rules belong in `get_channel`.
+    config:
+      column_types:
+        domain: string
+        kind: string
+        domain_type: string
+        type_if_paid: string
+        type_if_organic: string
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - domain
+              - kind
+    columns:
+      - name: domain
+        description: Source domain, app package name, UTM source value, or UTM medium value being classified.
+        tests:
+          - not_null
+      - name: kind
+        description: Whether `domain` is matched against the UTM source and referring domain or against the UTM medium.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - "medium"
+                  - "source"
+      - name: domain_type
+        description: Category of the source domain, null for mediums.
+        tests:
+          - accepted_values:
+              arguments:
+                values:
+                  - "AI"
+                  - "Email"
+                  - "Search"
+                  - "Shopping"
+                  - "Social"
+                  - "Video"
+      - name: type_if_paid
+        description: Channel the source or medium resolves to when the traffic is paid, null when it has no paid form.
+        tests:
+          - accepted_values:
+              arguments:
+                values:
+                  - "Display"
+                  - "Paid Search"
+                  - "Paid Shopping"
+                  - "Paid Social"
+                  - "Paid Video"
+      - name: type_if_organic
+        description: Channel the source or medium resolves to when the traffic is organic.
+        tests:
+          - accepted_values:
+              arguments:
+                values:
+                  - "AI"
+                  - "Affiliate"
+                  - "Audio"
+                  - "Display"
+                  - "Email"
+                  - "Organic Search"
+                  - "Organic Shopping"
+                  - "Organic Social"
+                  - "Organic Video"
+                  - "Push"
+                  - "Referral"
+                  - "SMS"
