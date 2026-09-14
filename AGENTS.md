@@ -117,7 +117,7 @@
 - Link form submissions to known subscribers, jobs, and organizations with left joins. Retain unmatched submissions rather than discarding identity or context.
 - Keep unnecessary sensitive or operational fields such as IP addresses, user agents, and uploaded-file URLs out of marts.
 - The grain of `dim_web_sessions` is one row per PostHog session. PostHog stamps session entry attribution on every event and it is constant within a session, so the dimension aggregates over the session identifier without an entry event selection rule.
-- Resolve `web_session_id` onto `fct_web_events` and `fct_form_submissions` by left joining `dim_web_sessions` on the natural session identifier. A null `web_session_id` means no session context, either a submission from before `posthog_session_id` capture was complete in 2026-08 or a visitor without PostHog consent, and it is never direct traffic.
+- Resolve `session_id` onto `fct_web_events` and `fct_form_submissions` by left joining `dim_web_sessions` on the natural session identifier. A null `session_id` means no session context, either a submission from before `posthog_session_id` capture was complete in 2026-08 or a visitor without PostHog consent, and it is never direct traffic.
 - Derive `channel` from UTM parameters before the referring domain, because email clients strip the referrer and newsletter traffic otherwise reads as direct. Classify on the referring domain rather than `$session_entry_search_engine`, which PostHog sets to `google` for both Gemini and Gmail.
 - Keep `internal` distinct from `direct`. A session whose entry referrer is the site's own domain comes from the 30 minute session window expiring mid-visit, not from a direct arrival.
 

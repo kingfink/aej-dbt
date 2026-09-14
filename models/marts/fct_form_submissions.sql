@@ -40,7 +40,7 @@ select
     j.job_id,
     coalesce(j.organization_id, o.organization_id) as organization_id,
     fs.email_address,
-    ws.web_session_id,
+    ws.session_id,
     fs.posthog_distinct_id,
     fs.posthog_session_id,
     fs.form_submission_details,

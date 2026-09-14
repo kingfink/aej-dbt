@@ -76,17 +76,17 @@ models:
         description: Visible text of the clicked link.
       - name: click_method
         description: How the click was performed, distinguishing plain clicks from modified and middle clicks that open a new tab.
-      - name: session_entry_referrer
+      - name: session_referrer
         description: Full referrer URL captured on the first page of the session. Repeated on every event in the session.
-      - name: session_entry_referring_domain
+      - name: session_referring_domain
         description: Host the session was referred from, or `$direct` when there was no referrer. Repeated on every event in the session.
-      - name: session_entry_page_path
+      - name: session_page_path
         description: Path of the first page of the session. Repeated on every event in the session.
-      - name: session_entry_utm_source
-        description: Campaign source on the session entry URL. Repeated on every event in the session.
-      - name: session_entry_utm_medium
-        description: Campaign medium on the session entry URL. Repeated on every event in the session.
-      - name: session_entry_utm_campaign
+      - name: session_utm_source
+        description: Lowercased campaign source on the session entry URL. Repeated on every event in the session.
+      - name: session_utm_medium
+        description: Lowercased campaign medium on the session entry URL. Repeated on every event in the session.
+      - name: session_utm_campaign
         description: Campaign name on the session entry URL. Repeated on every event in the session.
       - name: loaded_ts
         description: Timestamp when the batch export loaded the event into BigQuery.

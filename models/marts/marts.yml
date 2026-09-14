@@ -150,7 +150,7 @@ models:
     config:
       group: web_engagement
     columns:
-      - name: web_session_id
+      - name: session_id
         data_type: string
         description: Stable surrogate key generated from the source and the source session identifier.
         constraints:
@@ -192,19 +192,19 @@ models:
           - type: not_null
         tests:
           - not_null
-      - name: session_entry_page_path
+      - name: session_page_path
         data_type: string
         description: Path of the first page of the session.
-      - name: session_entry_referring_domain
+      - name: session_referring_domain
         data_type: string
         description: Host the session was referred from, or `$direct` when the visitor arrived with no referrer.
-      - name: session_entry_utm_source
+      - name: session_utm_source
         data_type: string
         description: Lowercased campaign source on the session entry URL.
-      - name: session_entry_utm_medium
+      - name: session_utm_medium
         data_type: string
         description: Lowercased campaign medium on the session entry URL.
-      - name: session_entry_utm_campaign
+      - name: session_utm_campaign
         data_type: string
         description: Campaign name on the session entry URL.
       - name: channel
@@ -214,7 +214,7 @@ models:
 
           UTM deliberately beats the referring domain, because email clients strip the referrer and newsletter traffic otherwise reads as direct.
 
-          `internal` is not direct traffic. It is a session whose entry referrer is the site's own domain, which happens when the 30-minute session window expires mid-visit, and it accounted for a quarter of sessions over the 90 days to 2026-09-11. A fact row with no session context has a null `web_session_id` and therefore no channel at all, which is also not direct.
+          `internal` is not direct traffic. It is a session whose entry referrer is the site's own domain, which happens when the 30-minute session window expires mid-visit, and it accounted for a quarter of sessions over the 90 days to 2026-09-11. A fact row with no session context has a null `session_id` and therefore no channel at all, which is also not direct.
         constraints:
           - type: not_null
         tests:
@@ -308,7 +308,7 @@ models:
         tests:
           - not_null
           - is_normalized_email_address
-      - name: web_session_id
+      - name: session_id
         data_type: string
         description: |
           Web session dimension key when the submission carries a session identifier that matches a captured PostHog session. Null means no session context rather than direct traffic: `posthog_session_id` capture on Netlify forms began in 2026-07 and is complete from 2026-08 onward, and visitors who declined analytics consent never carry one.
@@ -316,7 +316,7 @@ models:
           - relationships:
               arguments:
                 to: ref("dim_web_sessions")
-                field: web_session_id
+                field: session_id
       - name: posthog_distinct_id
         data_type: string
         description: Anonymous PostHog browser identifier when the visitor explicitly enabled PostHog analytics, retained as a nullable join key to behavioral events.
@@ -399,17 +399,17 @@ models:
           - type: not_null
         tests:
           - not_null
-      - name: web_session_id
+      - name: session_id
         data_type: string
         description: Web session dimension key for the session the event belongs to, carrying the session entry attribution and acquisition channel.
         tests:
           - relationships:
               arguments:
                 to: ref("dim_web_sessions")
-                field: web_session_id
-      - name: session_id
+                field: session_id
+      - name: source_session_id
         data_type: string
-        description: Session identifier the event belongs to.
+        description: Session identifier supplied by the behavioral analytics provider, retained as the business key for `session_id`.
       - name: page_path
         data_type: string
         description: Path of the page the event occurred on.
@@ -1150,30 +1150,30 @@ unit_tests:
         - {page_path: "/about/", page_type: other}
 
   - name: dim_web_sessions_derives_channel_precedence
-    description: Events in a session collapse to one row with lowercased UTM values; UTM beats a `$direct` referring domain, an AI assistant or webmail host beats the search engine it is hosted under, the site's own domain is internal rather than referral, and an event with no session identifier produces no session row.
+    description: Events in a session collapse to one row; UTM beats a `$direct` referring domain, an AI assistant or webmail host beats the search engine it is hosted under, the site's own domain is internal rather than referral, and an event with no session identifier produces no session row.
     model: dim_web_sessions
     given:
       - input: ref("stg_posthog__events")
         rows:
-          - {session_id: "newsletter", event_ts: "2026-09-01 00:00:00+00", session_entry_referring_domain: "$direct", session_entry_utm_source: "Newsletter", session_entry_utm_medium: "Email"}
-          - {session_id: "newsletter", event_ts: "2026-09-01 00:30:00+00", session_entry_referring_domain: "$direct", session_entry_utm_source: "Newsletter", session_entry_utm_medium: "Email"}
-          - {session_id: "paid", event_ts: "2026-09-01 00:01:00+00", session_entry_referring_domain: "www.google.com", session_entry_utm_source: "google", session_entry_utm_medium: "cpc"}
-          - {session_id: "google_jobs", event_ts: "2026-09-01 00:02:00+00", session_entry_referring_domain: "$direct", session_entry_utm_source: "google_jobs_apply", session_entry_utm_medium: "organic"}
-          - {session_id: "ai", event_ts: "2026-09-01 00:03:00+00", session_entry_referring_domain: "gemini.google.com", session_entry_utm_source: null, session_entry_utm_medium: null}
-          - {session_id: "webmail", event_ts: "2026-09-01 00:04:00+00", session_entry_referring_domain: "mail.google.com", session_entry_utm_source: null, session_entry_utm_medium: null}
-          - {session_id: "search", event_ts: "2026-09-01 00:05:00+00", session_entry_referring_domain: "www.google.com", session_entry_utm_source: null, session_entry_utm_medium: null}
-          - {session_id: "internal", event_ts: "2026-09-01 00:06:00+00", session_entry_referring_domain: "www.analyticsengineeringjobs.com", session_entry_utm_source: null, session_entry_utm_medium: null}
-          - {session_id: "direct", event_ts: "2026-09-01 00:07:00+00", session_entry_referring_domain: "$direct", session_entry_utm_source: null, session_entry_utm_medium: null}
-          - {session_id: "referral", event_ts: "2026-09-01 00:08:00+00", session_entry_referring_domain: "t.co", session_entry_utm_source: null, session_entry_utm_medium: null}
-          - {session_id: null, event_ts: "2026-09-01 00:09:00+00", session_entry_referring_domain: "$direct", session_entry_utm_source: null, session_entry_utm_medium: null}
+          - {session_id: "newsletter", event_ts: "2026-09-01 00:00:00+00", session_referring_domain: "$direct", session_utm_source: "newsletter", session_utm_medium: "email"}
+          - {session_id: "newsletter", event_ts: "2026-09-01 00:30:00+00", session_referring_domain: "$direct", session_utm_source: "newsletter", session_utm_medium: "email"}
+          - {session_id: "paid", event_ts: "2026-09-01 00:01:00+00", session_referring_domain: "www.google.com", session_utm_source: "google", session_utm_medium: "cpc"}
+          - {session_id: "google_jobs", event_ts: "2026-09-01 00:02:00+00", session_referring_domain: "$direct", session_utm_source: "google_jobs_apply", session_utm_medium: "organic"}
+          - {session_id: "ai", event_ts: "2026-09-01 00:03:00+00", session_referring_domain: "gemini.google.com", session_utm_source: null, session_utm_medium: null}
+          - {session_id: "webmail", event_ts: "2026-09-01 00:04:00+00", session_referring_domain: "mail.google.com", session_utm_source: null, session_utm_medium: null}
+          - {session_id: "search", event_ts: "2026-09-01 00:05:00+00", session_referring_domain: "www.google.com", session_utm_source: null, session_utm_medium: null}
+          - {session_id: "internal", event_ts: "2026-09-01 00:06:00+00", session_referring_domain: "www.analyticsengineeringjobs.com", session_utm_source: null, session_utm_medium: null}
+          - {session_id: "direct", event_ts: "2026-09-01 00:07:00+00", session_referring_domain: "$direct", session_utm_source: null, session_utm_medium: null}
+          - {session_id: "referral", event_ts: "2026-09-01 00:08:00+00", session_referring_domain: "t.co", session_utm_source: null, session_utm_medium: null}
+          - {session_id: null, event_ts: "2026-09-01 00:09:00+00", session_referring_domain: "$direct", session_utm_source: null, session_utm_medium: null}
     expect:
       rows:
-        - {source_session_id: "newsletter", session_started_ts: "2026-09-01 00:00:00+00", session_entry_utm_source: "newsletter", session_entry_utm_medium: "email", channel: email}
-        - {source_session_id: "paid", session_started_ts: "2026-09-01 00:01:00+00", session_entry_utm_source: "google", session_entry_utm_medium: "cpc", channel: paid}
-        - {source_session_id: "google_jobs", session_started_ts: "2026-09-01 00:02:00+00", session_entry_utm_source: "google_jobs_apply", session_entry_utm_medium: "organic", channel: organic_search}
-        - {source_session_id: "ai", session_started_ts: "2026-09-01 00:03:00+00", session_entry_utm_source: null, session_entry_utm_medium: null, channel: ai_assistant}
-        - {source_session_id: "webmail", session_started_ts: "2026-09-01 00:04:00+00", session_entry_utm_source: null, session_entry_utm_medium: null, channel: email}
-        - {source_session_id: "search", session_started_ts: "2026-09-01 00:05:00+00", session_entry_utm_source: null, session_entry_utm_medium: null, channel: organic_search}
-        - {source_session_id: "internal", session_started_ts: "2026-09-01 00:06:00+00", session_entry_utm_source: null, session_entry_utm_medium: null, channel: internal}
-        - {source_session_id: "direct", session_started_ts: "2026-09-01 00:07:00+00", session_entry_utm_source: null, session_entry_utm_medium: null, channel: direct}
-        - {source_session_id: "referral", session_started_ts: "2026-09-01 00:08:00+00", session_entry_utm_source: null, session_entry_utm_medium: null, channel: referral}
+        - {source_session_id: "newsletter", session_started_ts: "2026-09-01 00:00:00+00", session_utm_source: "newsletter", session_utm_medium: "email", channel: email}
+        - {source_session_id: "paid", session_started_ts: "2026-09-01 00:01:00+00", session_utm_source: "google", session_utm_medium: "cpc", channel: paid}
+        - {source_session_id: "google_jobs", session_started_ts: "2026-09-01 00:02:00+00", session_utm_source: "google_jobs_apply", session_utm_medium: "organic", channel: organic_search}
+        - {source_session_id: "ai", session_started_ts: "2026-09-01 00:03:00+00", session_utm_source: null, session_utm_medium: null, channel: ai_assistant}
+        - {source_session_id: "webmail", session_started_ts: "2026-09-01 00:04:00+00", session_utm_source: null, session_utm_medium: null, channel: email}
+        - {source_session_id: "search", session_started_ts: "2026-09-01 00:05:00+00", session_utm_source: null, session_utm_medium: null, channel: organic_search}
+        - {source_session_id: "internal", session_started_ts: "2026-09-01 00:06:00+00", session_utm_source: null, session_utm_medium: null, channel: internal}
+        - {source_session_id: "direct", session_started_ts: "2026-09-01 00:07:00+00", session_utm_source: null, session_utm_medium: null, channel: direct}
+        - {source_session_id: "referral", session_started_ts: "2026-09-01 00:08:00+00", session_utm_source: null, session_utm_medium: null, channel: referral}
