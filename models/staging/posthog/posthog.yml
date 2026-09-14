@@ -1,0 +1,82 @@
+version: 2
+
+sources:
+  - name: posthog
+    database: analytics-engineering-jobs
+    schema: posthog
+    loader: PostHog BigQuery batch export
+    config:
+      loaded_at_field: bq_ingested_timestamp
+      freshness:
+        warn_after: {count: 36, period: hour}
+        error_after: {count: 72, period: hour}
+    tables:
+      - name: events
+
+models:
+  - name: stg_posthog__events
+    description: |
+      PostHog behavioral events normalized to one row per event, restricted to the production site. The batch export delivers at least once, so duplicate event identifiers are collapsed to the most recently loaded copy. Local development, Netlify deploy preview, and preview worker traffic is excluded.
+    columns:
+      - name: event_id
+        description: Stable surrogate key generated from the source and the PostHog event identifier.
+        tests:
+          - not_null
+          - unique
+      - name: source_event_id
+        description: PostHog event identifier.
+        tests:
+          - not_null
+          - unique
+      - name: source
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - posthog
+      - name: event_type
+        description: PostHog event name normalized to snake case with the PostHog reserved prefix removed.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - apply_click
+                  - apply_modal_close
+                  - apply_modal_shown
+                  - apply_modal_skip
+                  - apply_modal_submit
+                  - autocapture
+                  - page_leave
+                  - page_view
+                  - rageclick
+                  - recording_observed
+                  - set
+                  - web_vitals
+      - name: event_ts
+        description: Timestamp when the event occurred, in UTC.
+        tests:
+          - not_null
+      - name: visitor_id
+        description: PostHog device identifier for the visitor. Person profiles are disabled, so this stays anonymous and is not reconciled across devices.
+        tests:
+          - not_null
+      - name: session_id
+        description: PostHog session identifier.
+      - name: page_path
+        description: Path of the page the event occurred on.
+      - name: organization_slug
+        description: Slug of the organization the event relates to, taken from the event property when present and otherwise parsed from a job page path.
+      - name: job_slug
+        description: Slug of the job the event relates to, taken from the event property when present and otherwise parsed from a job page path.
+      - name: outbound_url
+        description: Destination URL of an outbound click, such as the external application link on an apply click.
+      - name: link_text
+        description: Visible text of the clicked link.
+      - name: click_method
+        description: How the click was performed, distinguishing plain clicks from modified and middle clicks that open a new tab.
+      - name: loaded_ts
+        description: Timestamp when the batch export loaded the event into BigQuery.
+        tests:
+          - not_null
