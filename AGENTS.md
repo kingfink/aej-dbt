@@ -29,7 +29,7 @@
 - Give each mart a single `_id` surrogate primary key; retain natural or composite identifiers as business keys.
 - Staging models may retain source-native names; intermediate and mart models should use canonical project names.
 - Use `stg_`, `int_`, `dim_`, and `fct_` prefixes consistently.
-- Prefix new count measures with `n_` and summed measures with `sum_`, such as `n_impressions` and `sum_position`. Existing columns such as `message_count` keep their names until their contracts change for another reason.
+- Prefix new count measures with `n_` and summed measures with `sum_`, such as `n_impressions` and `sum_position`. Rename an existing column to this convention only through a new model version, as `dim_email_campaigns` v2 does for `message_count`.
 
 ## Joins
 
@@ -58,6 +58,9 @@
 - Prefer `dbt_project.yml` directory hierarchy for shared access, group, materialization, and contract configuration. Keep per-model group configuration only where mixed-domain models share a directory.
 - Enforce contracts on marts and declare a `data_type` for every mart column. Retain uniqueness as a data test rather than a BigQuery contract constraint.
 - Treat public Parquet files as public interfaces. The backing mart contract defines the file schema when the publisher selects every model column; update the contract, exposure, export configuration, and README together when the interface changes.
+- Ship a breaking mart change, such as a column rename or removal, as a new model version rather than editing the contract in place. Add the new version as a prerelease with `latest_version` still on the old version, set a `deprecation_date` on the old version, and bump `latest_version` once consumers have moved. Remove the old version after its deprecation date.
+- Rely on Fusion's latest version pointer for stable relation names. It maintains a view at the unsuffixed model name, such as `dim_email_campaigns`, pointing at whichever version `latest_version` names, so consumers that read the unsuffixed name, including Steep modules, move to a new version when `latest_version` is bumped. Do not alias a version to the unsuffixed name; that collides with the pointer. When a model is first versioned, its existing table still occupies the unsuffixed name and the pointer view cannot replace it, so run `mdbt build --target prd --full-refresh --select <model>` immediately after merge or the scheduled sync fails and skips the model's descendants.
+- Declare every column of a versioned model, including version-specific ones, in the model's top-level `columns`, and remove columns from a version with `include: all` and `exclude`. Fusion registers columns declared only inside a version block but does not generate their data tests.
 - Declare exposures only for real consumers. Verify Steep exposures against the live workspace and the `aej-steep` repository, and include the module's base relation plus models referenced by join paths, dimensions, or cohorts. Do not invent consumer URLs.
 - Use real ingestion timestamps for source freshness and tune thresholds to observed delivery cadence. Do not use event occurrence time as load time.
 - Use focused dbt unit tests for nontrivial state or lifecycle logic and reusable generic tests for invariants that apply across models.

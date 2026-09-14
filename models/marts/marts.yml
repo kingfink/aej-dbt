@@ -759,6 +759,21 @@ models:
       One row per email campaign, where a campaign is the batch of messages sharing a source, subject, and campaign date. Transactional and test sends are campaigns too; `is_test` separates the test sends and the subject separates the weekly newsletter from transactional mail.
     config:
       group: email
+    latest_version: 1
+    versions:
+      - v: 1
+        deprecation_date: 2026-10-14
+        description: |
+          One row per email campaign, where a campaign is the batch of messages sharing a source, subject, and campaign date. Transactional and test sends are campaigns too; `is_test` separates the test sends and the subject separates the weekly newsletter from transactional mail. Deprecated in favor of v2, which renames `message_count` to `n_messages` to follow the project's measure naming.
+        columns:
+          - include: all
+            exclude:
+              - n_messages
+      - v: 2
+        columns:
+          - include: all
+            exclude:
+              - message_count
     columns:
       - name: email_campaign_id
         data_type: string
@@ -800,7 +815,14 @@ models:
         description: Earliest sent-event timestamp across the campaign's messages. Null when no message in the campaign ever recorded a sent event.
       - name: message_count
         data_type: int64
-        description: Number of provider messages in the campaign, which is one per recipient send.
+        description: Number of provider messages in the campaign, which is one per recipient send. Version 1 only; renamed to `n_messages` in version 2.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+      - name: n_messages
+        data_type: int64
+        description: Number of provider messages in the campaign, which is one per recipient send. Version 2 onward.
         constraints:
           - type: not_null
         tests:
