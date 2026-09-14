@@ -35,12 +35,8 @@ select
     }} as url_impression_id,
     date_day,
     page_path,
-    if(
-        page_path like "/organizations/%" or page_path like "/jobs/%/%/",
-        {{ get_organization_slug("page_path") }},
-        null
-    ) as organization_slug,
-    if(page_path like "/jobs/%/%/", {{ get_job_slug("page_path") }}, null) as job_slug,
+    {{ get_organization_slug("page_path") }} as organization_slug,
+    {{ get_job_slug("page_path") }} as job_slug,
     query,
     country_code,
     search_type,
