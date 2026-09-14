@@ -363,13 +363,9 @@ models:
           - type: not_null
         tests:
           - not_null
-          - relationships:
-              arguments:
-                to: ref("int_google_search_console__pages")
-                field: canonical_path
       - name: page_type
         data_type: string
-        description: Kind of page the path addresses. Legacy flat job paths are `job_detail` but resolve to no job.
+        description: Kind of page the path addresses, classified by the shared `get_page_type` macro. Legacy flat job paths are `job` pages that resolve to no job.
         constraints:
           - type: not_null
         tests:
@@ -378,7 +374,7 @@ models:
               arguments:
                 values:
                   - home
-                  - job_detail
+                  - job
                   - job_index
                   - landing_page
                   - organization

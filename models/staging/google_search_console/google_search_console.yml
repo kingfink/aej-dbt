@@ -37,6 +37,26 @@ models:
         description: Site path the impressions were served for, with the query string and fragment removed and a trailing slash enforced.
         tests:
           - not_null
+      - name: page_type
+        description: Kind of page the path addresses, classified by the shared `get_page_type` macro so every model that carries a site path uses one definition.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - home
+                  - job
+                  - job_index
+                  - landing_page
+                  - organization
+                  - organization_index
+                  - other
+                  - subscribe
+                  - tag
+      - name: organization_slug
+        description: Slug of the organization the path addresses, set on organization pages and on job pages under the current `/jobs/{organization}/{job}/` scheme. Parsed with the same macro as `stg_organizations`, so the two join on one definition.
+      - name: job_slug
+        description: Slug of the job the path addresses, set only under the current `/jobs/{organization}/{job}/` scheme. Legacy flat job paths stay null rather than being guessed at.
       - name: query
         description: Search query, null on anonymized rows.
       - name: is_anonymized_query

@@ -47,9 +47,6 @@ models:
       email:
         +access: private
         +group: email
-      google_search_console:
-        +access: private
-        +group: web_engagement
     marts:
       +access: public
       +contract:

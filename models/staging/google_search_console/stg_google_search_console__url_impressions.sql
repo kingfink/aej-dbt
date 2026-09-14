@@ -2,11 +2,7 @@ with
     url_impressions as (
         select
             data_date as date_day,
-            -- Path only: drop scheme, host, query string, and fragment, then
-            -- enforce exactly one trailing slash to match the site's URLs.
-            concat(
-                rtrim(regexp_extract(url, r"^https?://[^/]+([^?#]*)"), "/"), "/"
-            ) as canonical_path,
+            {{ normalize_page_path("url") }} as canonical_path,
             query,
             is_anonymized_query,
             country,
@@ -41,6 +37,15 @@ select
     }} as url_impression_id,
     date_day,
     canonical_path,
+    {{ get_page_type("canonical_path") }} as page_type,
+    if(
+        canonical_path like "/organizations/%" or canonical_path like "/jobs/%/%/",
+        {{ get_organization_slug("canonical_path") }},
+        null
+    ) as organization_slug,
+    if(
+        canonical_path like "/jobs/%/%/", {{ get_job_slug("canonical_path") }}, null
+    ) as job_slug,
     query,
     is_anonymized_query,
     country,
@@ -51,4 +56,4 @@ select
     sum(clicks) as n_clicks,
     sum(sum_position) as sum_position
 from url_impressions
-group by 1, 2, 3, 4, 5, 6, 7, 8, 9
+group by 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12
