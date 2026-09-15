@@ -3,7 +3,7 @@ version: 2
 models:
   - name: dim_jobs
     description: |
-      One row per organization and job slug for every job published on Analytics Engineering Jobs, including jobs without usable pay. Stored USD base-pay observations supply annualized posted ranges and their midpoints; these are advertised pay, not offers or employee earnings. Active salary coverage is eligible active jobs divided by all active jobs, not disclosure in any currency. Publish median and middle-50-percent summaries only for groups with at least 10 eligible active jobs, with the observation count and an as-of date. Broad combined geographic bands and inferred annual periods are retained; employer, location, and posting mix can affect comparisons.
+      One row per organization and job slug for every job published on Analytics Engineering Jobs, including jobs without usable pay. Stored USD base-pay observations supply annualized posted ranges; these are advertised pay, not offers or employee earnings. A job has usable salary data when both annual bounds are present. Publish median and middle-50-percent summaries of derived range midpoints only for groups with at least 10 active jobs with usable salary data, with the observation count and an as-of date. Broad combined geographic bands and inferred annual periods are retained; employer, location, and posting mix can affect comparisons.
     config:
       group: site_content
     columns:
@@ -85,67 +85,21 @@ models:
         data_type: array<string>
         description: Tags assigned to the job.
 
-      - name: salary_min
-        data_type: float64
-        description: Stored USD base-pay lower bound in the original pay period, before annualization or eligibility filtering. Raw salary text is preserved in salary.
-      - name: salary_max
-        data_type: float64
-        description: Stored USD base-pay upper bound in the original pay period, before annualization or eligibility filtering. Equal bounds represent a single advertised amount.
-      - name: salary_unit
-        data_type: string
-        description: Explicit source pay period; takes precedence over salary_unit_inferred. Missing periods stay null.
-        tests:
-          - accepted_values:
-              arguments:
-                values: [HOUR, DAY, WEEK, MONTH, YEAR]
-      - name: salary_unit_inferred
-        data_type: string
-        description: Stored annual-period assumption, used only when salary_unit is null. The warehouse never infers a missing period itself.
-        tests:
-          - accepted_values:
-              arguments:
-                values: [YEAR]
-      - name: salary_source
-        data_type: string
-        description: Provenance of the normalized observation; salary is the ongoing frontmatter source and description is reviewed legacy recovery.
-        tests:
-          - accepted_values:
-              arguments:
-                values: [salary, description]
-      - name: is_salary_eligible
+      - name: salary_annual_min
+        data_type: int64
+        description: Upstream-validated advertised USD base-pay minimum annualized using 2080 hours, 260 days, 52 weeks, 12 months, or one year, rounded to the nearest whole dollar. Null when no usable range exists. Combined location bands retain their lowest minimum.
+      - name: salary_annual_max
+        data_type: int64
+        description: Upstream-validated advertised USD base-pay maximum annualized with the same factors and rounding as salary_annual_min. Null when no usable range exists. Combined location bands retain their highest maximum; no upper salary ceiling is imposed.
+      - name: is_remote
         data_type: bool
-        description: Whether upstream-validated USD pay has representable annual bounds and the job is not explicitly unverified. Staging data tests check the upstream bounds, provenance, and inferred-period guarantees. Independent of is_active so historical observations remain available; current summaries must also filter is_active to true.
+        description: Whether the job has the Remote tag. False does not establish onsite work; retain location for geographic context.
         tests:
           - not_null
           - accepted_values:
               arguments:
                 values: [true, false]
                 quote: false
-      - name: salary_annual_min
-        data_type: int64
-        description: Eligible advertised USD base-pay minimum annualized using 2080 hours, 260 days, 52 weeks, 12 months, or one year, rounded to the nearest whole dollar. Null for ineligible observations. Combined location bands retain their lowest minimum.
-      - name: salary_annual_max
-        data_type: int64
-        description: Eligible advertised USD base-pay maximum annualized with the same factors and rounding as salary_annual_min. Null for ineligible observations. Combined location bands retain their highest maximum; no upper salary ceiling is imposed.
-      - name: salary_annual_midpoint
-        data_type: float64
-        description: Arithmetic midpoint of the eligible whole-dollar annualized advertised minimum and maximum, retaining half dollars when the sum is odd; not actual earnings. Median and 25th/75th percentiles of these per-job values define published pay summaries; the middle 50 percent is not a minimum-to-maximum advertised range.
-      - name: job_level
-        data_type: string
-        description: The single distinct canonical level tag, including the source taxonomy's Contract and Internship categories. Missing or conflicting level tags are Unspecified. People Manager is a separate role-type tag and does not override level; no level is inferred from the job title.
-        tests:
-          - not_null
-          - accepted_values:
-              arguments:
-                values: [Contract, Internship, Junior, Lead, Mid-Level, Senior, Staff, Unspecified]
-      - name: remote_group
-        data_type: string
-        description: Remote when the Remote tag is present, otherwise Other/unspecified. The latter does not establish onsite work. Keep location alongside this grouping to retain geographic restrictions on remote roles.
-        tests:
-          - not_null
-          - accepted_values:
-              arguments:
-                values: [Remote, Other/unspecified]
 
   - name: dim_organizations
     description: One row per organization published on Analytics Engineering Jobs.

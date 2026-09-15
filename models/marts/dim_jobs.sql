@@ -14,17 +14,9 @@ select
     j.location,
     j.salary,
     j.tags,
-    j.salary_min,
-    j.salary_max,
-    j.salary_unit,
-    j.salary_unit_inferred,
-    j.salary_source,
-    j.is_salary_eligible,
     j.salary_annual_min,
     j.salary_annual_max,
-    j.salary_annual_midpoint,
-    j.job_level,
-    j.remote_group
+    j.is_remote
 from {{ ref("stg_jobs") }} as j
 left join
     {{ ref("dim_organizations") }} as o on j.organization_slug = o.organization_slug

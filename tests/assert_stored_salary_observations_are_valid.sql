@@ -11,7 +11,7 @@ select
 from {{ ref("stg_jobs") }}
 where
     (salary_min is not null or salary_max is not null or salary_source is not null)
-    and (
+    and not coalesce(
         salary_min > 0
         and salary_max >= salary_min
         and not is_inf(salary_min)
@@ -24,6 +24,6 @@ where
                 and salary_unit_inferred = 'YEAR'
                 and salary_min >= 20000
             )
-        )
+        ),
+        false
     )
-    is not true
