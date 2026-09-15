@@ -91,6 +91,9 @@ models:
       - name: salary_annual_max
         data_type: int64
         description: Upstream-validated advertised USD base-pay maximum annualized with the same factors and rounding as salary_annual_min. Null when no usable range exists. Combined location bands retain their highest maximum; no upper salary ceiling is imposed.
+      - name: salary_annual_midpoint
+        data_type: float64
+        description: Midpoint of the annualized USD range, (salary_annual_min + salary_annual_max) / 2. Null unless both bounds are present, so it also marks usable salary data. This is the value summarized by salary medians and percentiles.
       - name: is_remote
         data_type: bool
         description: Whether the job has the Remote tag. False does not establish onsite work; retain location for geographic context.

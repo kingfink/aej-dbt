@@ -163,7 +163,7 @@ Both objects use `Cache-Control: no-cache`. Because they are updated separately,
 
 ### Job salary definitions
 
-`parquet_exports.json` continues to publish every column of `dbt_prd.dim_jobs` to `jobs.parquet`. The additive interface preserves `salary` and `tags` and adds only `salary_annual_min`, `salary_annual_max`, `is_remote`, `level`, and `role_type`. Existing columns and the export path keep their meanings.
+`parquet_exports.json` continues to publish every column of `dbt_prd.dim_jobs` to `jobs.parquet`. The additive interface preserves `salary` and `tags` and adds only `salary_annual_min`, `salary_annual_max`, `salary_annual_midpoint`, `is_remote`, `level`, and `role_type`. Existing columns and the export path keep their meanings.
 
 The normalized observations come from reviewed USD base-pay fields in site frontmatter. dbt does not parse salary text or descriptions, infer missing periods, or convert currencies. Explicit periods win over the stored `YEAR` fallback. Upstream extraction validates finite, positive, ordered bounds, provenance, and periods; staging data tests check these guarantees rather than repeating them as model filters. A single amount is usable when its bounds are equal. Broad combined location bands remain usable and there is no upper salary ceiling.
 
@@ -174,7 +174,7 @@ The normalized observations come from reviewed USD base-pay fields in site front
 Consumers should use these definitions:
 
 - **Current coverage:** count jobs where `is_active = true`; the numerator additionally requires both annual salary bounds. Label the percentage as usable USD salary coverage, not disclosure in any currency.
-- **Pay by level or remote status:** among active jobs with both annual bounds, derive the midpoint as `(salary_annual_min + salary_annual_max) / 2`, then compute its approximate median and 25th/75th percentiles with BigQuery `approx_quantiles`, used for simplicity because `percentile_cont` is not available as an aggregate. Use `level`, `role_type`, and `is_remote` for the breakdowns. Show the salary observation count alongside pay summaries, because small groups are unstable; there is no minimum-observation threshold.
+- **Pay by level or remote status:** among active jobs with both annual bounds, use `salary_annual_midpoint`, which `dim_jobs` derives as `(salary_annual_min + salary_annual_max) / 2`, and compute its approximate median and 25th/75th percentiles with BigQuery `approx_quantiles`, used for simplicity because `percentile_cont` is not available as an aggregate. Use `level`, `role_type`, and `is_remote` for the breakdowns. Show the salary observation count alongside pay summaries, because small groups are unstable; there is no minimum-observation threshold.
 - **Context:** show an as-of date tied to the successful data refresh and check source freshness before publication. These are advertised ranges, not offers or earnings. Inferred periods, broad geographic bands, and the employer/location/level mix affect the results; a change in posting medians does not establish a market-pay trend.
 
 The upstream `aej-dlt` job-content load must include the normalized frontmatter before these columns can populate. Build and test the models after that load, then publish through the existing `mpub` flow. Steep metrics and newsletter/site presentation are the next consumers described in [the revised salary scope](https://github.com/kingfink/analytics-engineering-jobs/issues/1844#issuecomment-5681150555).
