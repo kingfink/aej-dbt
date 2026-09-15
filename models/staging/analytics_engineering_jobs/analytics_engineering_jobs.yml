@@ -1,6 +1,6 @@
 version: 2
 
-sources: 
+sources:
   - name: analytics_engineering_jobs
     schema: dlt_content
     loader: dlt
@@ -13,3 +13,117 @@ sources:
     tables:
       - name: jobs
       - name: organizations
+
+models:
+  - name: stg_jobs
+    description: Source job frontmatter with stored USD pay fields, annualized whole-dollar bounds, and a Remote-tag indicator. Upstream extraction validates salary observations; data tests check those guarantees. No pay is inferred or re-extracted here.
+    columns:
+      - name: salary_min
+        description: Stored USD base-pay minimum in its original period.
+      - name: salary_max
+        description: Stored USD base-pay maximum in its original period.
+      - name: salary_unit
+        description: Explicit source pay period, preserved separately from inference.
+        tests:
+          - accepted_values:
+              arguments:
+                values: [HOUR, DAY, WEEK, MONTH, YEAR]
+      - name: salary_unit_inferred
+        description: Stored YEAR assumption; only used as a fallback when salary_unit is null.
+        tests:
+          - accepted_values:
+              arguments:
+                values: [YEAR]
+      - name: salary_source
+        description: Provenance of the stored USD range; salary frontmatter or reviewed legacy description recovery.
+        tests:
+          - accepted_values:
+              arguments:
+                values: [salary, description]
+      - name: salary_annual_min
+        description: Stored salary minimum annualized and rounded to the nearest whole dollar.
+      - name: salary_annual_max
+        description: Stored salary maximum annualized and rounded to the nearest whole dollar.
+      - name: is_remote
+        description: Whether the job has the Remote tag.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [true, false]
+                quote: false
+
+unit_tests:
+  - name: stg_jobs_preserves_salary_observations
+    description: Stored source fields and inference stay separate, and raw salary text alone does not create a normalized observation.
+    model: stg_jobs
+    given:
+      - input: source("analytics_engineering_jobs", "jobs")
+        format: sql
+        rows: |
+          select 'docs/jobs/example/hourly.md' as file_path, json '{"salary":"$50-75 per hour", "salary_min":50, "salary_max":75, "salary_unit":"HOUR", "salary_unit_inferred":"YEAR", "salary_source":"salary", "tags":["Remote"]}' as frontmatter
+
+          union all
+
+          select 'docs/jobs/example/legacy.md', json '{"salary_min":100000, "salary_max":150000, "salary_unit_inferred":"YEAR", "salary_source":"description", "tags":[]}'
+
+          union all
+
+          select 'docs/jobs/example/raw.md', json '{"salary":"CAD 100000-150000", "tags":[]}'
+    expect:
+      rows:
+        - {job_slug: hourly, salary: "$50-75 per hour", salary_min: 50, salary_max: 75, salary_unit: HOUR, salary_unit_inferred: YEAR, salary_source: salary, salary_annual_min: 104000, salary_annual_max: 156000, is_remote: true}
+        - {job_slug: legacy, salary: null, salary_min: 100000, salary_max: 150000, salary_unit: null, salary_unit_inferred: YEAR, salary_source: description, salary_annual_min: 100000, salary_annual_max: 150000, is_remote: false}
+        - {job_slug: raw, salary: "CAD 100000-150000", salary_min: null, salary_max: null, salary_unit: null, salary_unit_inferred: null, salary_source: null, salary_annual_min: null, salary_annual_max: null, is_remote: false}
+
+  - name: stg_jobs_annualizes_supported_salary_periods
+    description: Annualizes every supported period to whole dollars, gives explicit periods precedence, handles unrepresentable values, and identifies Remote tags.
+    model: stg_jobs
+    given:
+      - input: source("analytics_engineering_jobs", "jobs")
+        format: sql
+        rows: |
+          select 'docs/jobs/example/year.md' as file_path, json '{"salary_min":100000,"salary_max":150000,"salary_unit":"YEAR","salary_source":"salary","tags":["Remote"]}' as frontmatter
+
+          union all
+
+          select 'docs/jobs/example/hour.md', json '{"salary_min":50,"salary_max":75,"salary_unit":"HOUR","salary_unit_inferred":"YEAR","salary_source":"salary","tags":[]}'
+
+          union all
+
+          select 'docs/jobs/example/day.md', json '{"salary_min":500,"salary_max":600,"salary_unit":"DAY","salary_source":"salary","tags":[]}'
+
+          union all
+
+          select 'docs/jobs/example/week.md', json '{"salary_min":2000,"salary_max":3000,"salary_unit":"WEEK","salary_source":"salary","tags":[]}'
+
+          union all
+
+          select 'docs/jobs/example/month.md', json '{"salary_min":10000,"salary_max":15000,"salary_unit":"MONTH","salary_source":"salary","tags":[]}'
+
+          union all
+
+          select 'docs/jobs/example/rounding.md', json '{"salary_min":50.123,"salary_max":75.456,"salary_unit":"HOUR","salary_source":"salary","tags":[]}'
+
+          union all
+
+          select 'docs/jobs/example/missing.md', json '{"salary_min":null,"salary_max":null,"salary_source":null,"tags":[]}'
+
+          union all
+
+          select 'docs/jobs/example/invalid-period.md', json '{"salary_min":100000,"salary_max":150000,"salary_unit":"invalid","salary_source":"salary","tags":[]}'
+
+          union all
+
+          select 'docs/jobs/example/overflow.md', json '{"salary_min":1e+307,"salary_max":1e+308,"salary_unit":"HOUR","salary_source":"salary","tags":[]}'
+    expect:
+      rows:
+        - {job_slug: year, salary_annual_min: 100000, salary_annual_max: 150000, is_remote: true}
+        - {job_slug: hour, salary_annual_min: 104000, salary_annual_max: 156000, is_remote: false}
+        - {job_slug: day, salary_annual_min: 130000, salary_annual_max: 156000, is_remote: false}
+        - {job_slug: week, salary_annual_min: 104000, salary_annual_max: 156000, is_remote: false}
+        - {job_slug: month, salary_annual_min: 120000, salary_annual_max: 180000, is_remote: false}
+        - {job_slug: rounding, salary_annual_min: 104256, salary_annual_max: 156948, is_remote: false}
+        - {job_slug: missing, salary_annual_min: null, salary_annual_max: null, is_remote: false}
+        - {job_slug: invalid-period, salary_annual_min: null, salary_annual_max: null, is_remote: false}
+        - {job_slug: overflow, salary_annual_min: null, salary_annual_max: null, is_remote: false}

@@ -13,7 +13,10 @@ select
     j.description,
     j.location,
     j.salary,
-    j.tags
+    j.tags,
+    j.salary_annual_min,
+    j.salary_annual_max,
+    j.is_remote
 from {{ ref("stg_jobs") }} as j
 left join
     {{ ref("dim_organizations") }} as o on j.organization_slug = o.organization_slug

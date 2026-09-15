@@ -194,7 +194,7 @@ exposures:
     type: application
     maturity: high
     url: https://storage.googleapis.com/aej-data/jobs.parquet
-    description: Public downloadable Parquet interface containing the contracted jobs dimension.
+    description: Public downloadable Parquet interface containing the contracted jobs dimension, including annualized USD salary bounds and a Remote-tag indicator. Current pay summaries require active jobs with both salary bounds, at least 10 salary observations, and an as-of date.
     depends_on:
       - ref("dim_jobs")
     owner:
