@@ -13,3 +13,56 @@ sources:
     tables:
       - name: jobs
       - name: organizations
+
+models:
+  - name: stg_jobs
+    description: Source job frontmatter with normalized stored USD pay fields preserved separately from salary text. No pay is inferred or re-extracted here.
+    columns:
+      - name: salary_min
+        description: Stored USD base-pay minimum in its original period.
+      - name: salary_max
+        description: Stored USD base-pay maximum in its original period.
+      - name: salary_unit
+        description: Explicit source pay period, preserved separately from inference.
+        tests:
+          - accepted_values:
+              arguments:
+                values: [HOUR, DAY, WEEK, MONTH, YEAR]
+      - name: salary_unit_inferred
+        description: Stored YEAR assumption; only eligible as a fallback when salary_unit is null.
+        tests:
+          - accepted_values:
+              arguments:
+                values: [YEAR]
+      - name: salary_source
+        description: Provenance of the stored USD range; salary frontmatter or reviewed legacy description recovery.
+        tests:
+          - accepted_values:
+              arguments:
+                values: [salary, description]
+      - name: is_verified
+        description: Source verification status; explicitly false excludes salary observations, while missing legacy status does not.
+        tests:
+          - accepted_values:
+              arguments:
+                values: [true, false]
+                quote: false
+
+unit_tests:
+  - name: stg_jobs_preserves_salary_observations
+    description: Stored source fields and inference stay separate, and raw salary text alone does not create a normalized observation.
+    model: stg_jobs
+    given:
+      - input: source("analytics_engineering_jobs", "jobs")
+        format: sql
+        rows: |
+          select 'docs/jobs/example/hourly.md' as file_path, json '{"salary":"$50-75 per hour", "salary_min":50, "salary_max":75, "salary_unit":"HOUR", "salary_unit_inferred":"YEAR", "salary_source":"salary", "verified":true}' as frontmatter
+          union all
+          select 'docs/jobs/example/legacy.md', json '{"salary_min":100000, "salary_max":150000, "salary_unit_inferred":"YEAR", "salary_source":"description"}'
+          union all
+          select 'docs/jobs/example/raw.md', json '{"salary":"CAD 100000-150000", "verified":false}'
+    expect:
+      rows:
+        - {job_slug: hourly, salary: "$50-75 per hour", salary_min: 50, salary_max: 75, salary_unit: HOUR, salary_unit_inferred: YEAR, salary_source: salary, is_verified: true}
+        - {job_slug: legacy, salary: null, salary_min: 100000, salary_max: 150000, salary_unit: null, salary_unit_inferred: YEAR, salary_source: description, is_verified: null}
+        - {job_slug: raw, salary: "CAD 100000-150000", salary_min: null, salary_max: null, salary_unit: null, salary_unit_inferred: null, salary_source: null, is_verified: false}

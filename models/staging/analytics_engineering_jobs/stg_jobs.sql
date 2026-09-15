@@ -11,5 +11,12 @@ select
     as description,
     {{ get_frontmatter_value("frontmatter", "$.location", "string") }} as location,
     {{ get_frontmatter_value("frontmatter", "$.salary", "string") }} as salary,
+    {{ get_frontmatter_value("frontmatter", "$.salary_min", "float64") }} as salary_min,
+    {{ get_frontmatter_value("frontmatter", "$.salary_max", "float64") }} as salary_max,
+    {{ get_frontmatter_value("frontmatter", "$.salary_unit") }} as salary_unit,
+    {{ get_frontmatter_value("frontmatter", "$.salary_unit_inferred") }}
+    as salary_unit_inferred,
+    {{ get_frontmatter_value("frontmatter", "$.salary_source") }} as salary_source,
+    {{ get_frontmatter_value("frontmatter", "$.verified", "bool") }} as is_verified,
     json_value_array(frontmatter, '$.tags') as tags
 from {{ source("analytics_engineering_jobs", "jobs") }}

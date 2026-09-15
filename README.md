@@ -161,6 +161,22 @@ The exported relations have enforced dbt contracts. Because publishing selects e
 
 Both objects use `Cache-Control: no-cache`. Because they are updated separately, clients may briefly see files from different publishes.
 
+### Job salary definitions
+
+`parquet_exports.json` continues to publish every column of `dbt_prd.dim_jobs` to `jobs.parquet`. The additive salary interface preserves `salary` and `tags` and adds `salary_min`, `salary_max`, `salary_unit`, `salary_unit_inferred`, `salary_source`, `is_salary_eligible`, `salary_annual_min`, `salary_annual_max`, `salary_annual_midpoint`, `job_level`, and `remote_group`. Existing columns and the export path keep their meanings.
+
+The normalized observations come from reviewed USD base-pay fields in site frontmatter. dbt does not parse salary text or descriptions, infer missing periods, or convert currencies. Explicit periods win; the stored `YEAR` inference is a fallback only, and requires a minimum of at least USD 20,000. Bounds must be finite, positive, and ordered, with a known source and period; explicitly unverified jobs are ineligible. A single amount is eligible when its bounds are equal. Broad combined location bands remain eligible and there is no upper salary ceiling.
+
+Annualization uses 2,080 hours, 260 days, 52 weeks, or 12 months and rounds each bound to cents. The midpoint is the arithmetic mean of those bounds. Ineligible jobs have null annualized amounts and remain in the dimension so coverage retains its denominator. `job_level` uses the single canonical level tag, or `Unspecified` for missing/conflicting tags; `People Manager` does not override level. `remote_group` is `Remote` only when tagged, otherwise `Other/unspecified`; the original `location` retains geographic restrictions.
+
+Consumers should use these definitions:
+
+- **Current coverage:** count jobs where `is_active = true`; the numerator additionally requires `is_salary_eligible = true`. Label the percentage as usable USD salary coverage, not disclosure in any currency.
+- **Pay by level or remote group:** among eligible active jobs, compute the median and 25th/75th percentiles of `salary_annual_midpoint`. Use continuous percentiles, show the salary observation count, and suppress pay summaries below 10 observations. Counts and coverage can still be shown for small groups.
+- **Context:** show an as-of date tied to the successful data refresh and check source freshness before publication. These are advertised ranges, not offers or earnings. Inferred periods, broad geographic bands, and the employer/location/level mix affect the results; a change in posting medians does not establish a market-pay trend.
+
+The upstream `aej-dlt` job-content load must include the normalized frontmatter before these columns can populate. Build and test the models after that load, then publish through the existing `mpub` flow. Steep metrics and newsletter/site presentation are the next consumers described in [the revised salary scope](https://github.com/kingfink/analytics-engineering-jobs/issues/1844#issuecomment-5681150555).
+
 ## Scheduled production sync
 
 The deployed Modal app builds production and publishes Parquet files every six hours:
