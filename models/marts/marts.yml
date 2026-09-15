@@ -3,7 +3,7 @@ version: 2
 models:
   - name: dim_jobs
     description: |
-      One row per organization and job slug for every job published on Analytics Engineering Jobs, including jobs without usable pay. Stored USD base-pay observations supply annualized posted ranges; these are advertised pay, not offers or employee earnings. A job has usable salary data when both annual bounds are present. Publish median and middle-50-percent summaries of derived range midpoints only for groups with at least 10 active jobs with usable salary data, with the observation count and an as-of date. Broad combined geographic bands and inferred annual periods are retained; employer, location, and posting mix can affect comparisons.
+      One row per organization and job slug for every job published on Analytics Engineering Jobs, including jobs without usable pay. Stored USD base-pay observations supply annualized posted ranges; these are advertised pay, not offers or employee earnings. A job has usable salary data when both annual bounds are present. Summarize derived range midpoints of active jobs with usable salary data as an approximate median and middle 50 percent, using BigQuery approx_quantiles for simplicity, with the observation count and an as-of date. Broad combined geographic bands and inferred annual periods are retained; employer, location, and posting mix can affect comparisons.
     config:
       group: site_content
     columns:
