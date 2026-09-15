@@ -57,9 +57,13 @@ unit_tests:
         format: sql
         rows: |
           select 'docs/jobs/example/hourly.md' as file_path, json '{"salary":"$50-75 per hour", "salary_min":50, "salary_max":75, "salary_unit":"HOUR", "salary_unit_inferred":"YEAR", "salary_source":"salary", "verified":true}' as frontmatter
+
           union all
+
           select 'docs/jobs/example/legacy.md', json '{"salary_min":100000, "salary_max":150000, "salary_unit_inferred":"YEAR", "salary_source":"description"}'
+
           union all
+
           select 'docs/jobs/example/raw.md', json '{"salary":"CAD 100000-150000", "verified":false}'
     expect:
       rows:
