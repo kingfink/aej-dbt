@@ -16,6 +16,7 @@ select
     j.tags,
     j.salary_annual_min,
     j.salary_annual_max,
+    (j.salary_annual_min + j.salary_annual_max) / 2 as salary_annual_midpoint,
     j.is_remote,
     j.level,
     j.role_type

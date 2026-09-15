@@ -92,7 +92,7 @@ exposures:
     label: "Steep module: Daily Jobs"
     type: analysis
     maturity: low
-    description: One row per UTC date and listed job, with current active-job counts, usable USD salary coverage, and posted-range midpoint median and middle-50-percent summaries on the latest date, split by job level, role type, and remote status.
+    description: One row per UTC date and listed job, with current active-job counts, usable USD salary coverage, and approximate posted-range midpoint median and middle-50-percent summaries, using approx_quantiles for simplicity, on the latest date, split by job level, role type, and remote status.
     depends_on:
       - ref("dim_jobs")
       - ref("fct_jobs_daily")
@@ -206,7 +206,7 @@ exposures:
     type: application
     maturity: high
     url: https://storage.googleapis.com/aej-data/jobs.parquet
-    description: Public downloadable Parquet interface containing the contracted jobs dimension, including annualized USD salary bounds and a Remote-tag indicator. Current pay summaries require active jobs with both salary bounds, at least 10 salary observations, and an as-of date.
+    description: Public downloadable Parquet interface containing the contracted jobs dimension, including annualized USD salary bounds and midpoint and a Remote-tag indicator. Current pay summaries use active jobs with both salary bounds, show their observation count and an as-of date, and use approximate quantiles.
     depends_on:
       - ref("dim_jobs")
     owner:
