@@ -58,23 +58,20 @@ select
         )
     }} as salary_annual_max,
     'Remote' in unnest(j.tags) as is_remote,
-    (
-        select if(count(*) = 1, any_value(t), null)
-        from unnest(j.tags) as t
-        where
-            t in (
+    {{
+        get_single_tag(
+            "j.tags",
+            [
                 "Contract",
                 "Internship",
                 "Junior",
                 "Lead",
                 "Mid-Level",
                 "Senior",
-                "Staff"
-            )
-    ) as level,
-    (
-        select if(count(*) = 1, any_value(t), null)
-        from unnest(j.tags) as t
-        where t in ("Individual Contributor", "People Manager")
-    ) as role_type
+                "Staff",
+            ],
+        )
+    }} as level,
+    {{ get_single_tag("j.tags", ["Individual Contributor", "People Manager"]) }}
+    as role_type
 from frontmatter as j
