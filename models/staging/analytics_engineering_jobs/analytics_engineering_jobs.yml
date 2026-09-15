@@ -52,8 +52,42 @@ models:
               arguments:
                 values: [true, false]
                 quote: false
+      - name: level
+        description: The single level tag; null when a job has none or several.
+        tests:
+          - accepted_values:
+              arguments:
+                values: [Contract, Internship, Junior, Lead, Mid-Level, Senior, Staff]
+      - name: role_type
+        description: The single role type tag; null when a job has none or several.
+        tests:
+          - accepted_values:
+              arguments:
+                values: [Individual Contributor, People Manager]
 
 unit_tests:
+  - name: stg_jobs_derives_single_level_and_role_type
+    description: Level and role type come from exactly one matching tag each; missing or conflicting tags produce null rather than a guess.
+    model: stg_jobs
+    given:
+      - input: source("analytics_engineering_jobs", "jobs")
+        format: sql
+        rows: |
+          select 'docs/jobs/example/single.md' as file_path, json '{"tags":["dbt", "Senior", "Individual Contributor", "Remote"]}' as frontmatter
+
+          union all
+
+          select 'docs/jobs/example/conflicting.md', json '{"tags":["Mid-Level", "Senior", "Individual Contributor", "People Manager"]}'
+
+          union all
+
+          select 'docs/jobs/example/missing.md', json '{"tags":["dbt"]}'
+    expect:
+      rows:
+        - {job_slug: single, level: Senior, role_type: Individual Contributor}
+        - {job_slug: conflicting, level: null, role_type: null}
+        - {job_slug: missing, level: null, role_type: null}
+
   - name: stg_jobs_preserves_salary_observations
     description: Stored source fields and inference stay separate, and raw salary text alone does not create a normalized observation.
     model: stg_jobs

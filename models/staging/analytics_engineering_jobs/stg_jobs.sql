@@ -57,5 +57,21 @@ select
             "j.salary_max", "coalesce(j.salary_unit, j.salary_unit_inferred)"
         )
     }} as salary_annual_max,
-    'Remote' in unnest(j.tags) as is_remote
+    'Remote' in unnest(j.tags) as is_remote,
+    {{
+        get_single_tag(
+            "j.tags",
+            [
+                "Contract",
+                "Internship",
+                "Junior",
+                "Lead",
+                "Mid-Level",
+                "Senior",
+                "Staff",
+            ],
+        )
+    }} as level,
+    {{ get_single_tag("j.tags", ["Individual Contributor", "People Manager"]) }}
+    as role_type
 from frontmatter as j
