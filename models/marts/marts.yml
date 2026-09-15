@@ -114,7 +114,7 @@ models:
                 values: [salary, description]
       - name: is_salary_eligible
         data_type: bool
-        description: Whether stored pay is a usable USD base-pay observation with finite positive ordered bounds, valid provenance and period, and representable annual bounds. Explicitly unverified jobs are ineligible; an inferred annual period requires a minimum of at least USD 20000. Independent of is_active so historical observations remain available; current summaries must also filter is_active to true.
+        description: Whether upstream-validated USD pay has representable annual bounds and the job is not explicitly unverified. Staging data tests check the upstream bounds, provenance, and inferred-period guarantees. Independent of is_active so historical observations remain available; current summaries must also filter is_active to true.
         tests:
           - not_null
           - accepted_values:
@@ -122,14 +122,14 @@ models:
                 values: [true, false]
                 quote: false
       - name: salary_annual_min
-        data_type: float64
-        description: Eligible advertised USD base-pay minimum annualized using 2080 hours, 260 days, 52 weeks, 12 months, or one year, rounded to cents. Null for ineligible observations. Combined location bands retain their lowest minimum.
+        data_type: int64
+        description: Eligible advertised USD base-pay minimum annualized using 2080 hours, 260 days, 52 weeks, 12 months, or one year, rounded to the nearest whole dollar. Null for ineligible observations. Combined location bands retain their lowest minimum.
       - name: salary_annual_max
-        data_type: float64
+        data_type: int64
         description: Eligible advertised USD base-pay maximum annualized with the same factors and rounding as salary_annual_min. Null for ineligible observations. Combined location bands retain their highest maximum; no upper salary ceiling is imposed.
       - name: salary_annual_midpoint
         data_type: float64
-        description: Arithmetic midpoint of the eligible annualized advertised minimum and maximum, not actual earnings. Median and 25th/75th percentiles of these per-job values define published pay summaries; the middle 50 percent is not a minimum-to-maximum advertised range.
+        description: Arithmetic midpoint of the eligible whole-dollar annualized advertised minimum and maximum, retaining half dollars when the sum is odd; not actual earnings. Median and 25th/75th percentiles of these per-job values define published pay summaries; the middle 50 percent is not a minimum-to-maximum advertised range.
       - name: job_level
         data_type: string
         description: The single distinct canonical level tag, including the source taxonomy's Contract and Internship categories. Missing or conflicting level tags are Unspecified. People Manager is a separate role-type tag and does not override level; no level is inferred from the job title.
@@ -1334,85 +1334,3 @@ unit_tests:
         - {source_session_id: "direct", session_started_ts: "2026-09-01 00:10:00+00", channel: direct}
         - {source_session_id: "referral", session_started_ts: "2026-09-01 00:11:00+00", channel: referral}
         - {source_session_id: "no_referrer", session_started_ts: "2026-09-01 00:12:00+00", channel: unknown}
-
-  - name: dim_jobs_defines_salary_eligibility_and_groupings
-    description: Annualizes every supported period, preserves explicit precedence and legacy inference, retains missing-pay and inactive jobs, rejects invalid observations, and groups tags without guessing onsite work or seniority.
-    model: dim_jobs
-    given:
-      - input: ref("stg_jobs")
-        rows:
-          - {"organization_slug": "example", "job_slug": "explicit", "salary_min": 100000, "salary_max": 150000, "salary_unit": "YEAR", "salary_unit_inferred": null, "salary_source": "salary", "is_verified": null, "is_active": true, "tags": ["Senior", "People Manager", "Remote"]}
-          - {"organization_slug": "example", "job_slug": "hourly", "salary_min": 50, "salary_max": 75, "salary_unit": "HOUR", "salary_unit_inferred": "YEAR", "salary_source": "salary", "is_verified": null, "is_active": true, "tags": []}
-          - {"organization_slug": "example", "job_slug": "daily", "salary_min": 500, "salary_max": 600, "salary_unit": "DAY", "salary_unit_inferred": null, "salary_source": "salary", "is_verified": null, "is_active": true, "tags": []}
-          - {"organization_slug": "example", "job_slug": "weekly", "salary_min": 2000, "salary_max": 3000, "salary_unit": "WEEK", "salary_unit_inferred": null, "salary_source": "salary", "is_verified": null, "is_active": true, "tags": []}
-          - {"organization_slug": "example", "job_slug": "monthly", "salary_min": 10000, "salary_max": 15000, "salary_unit": "MONTH", "salary_unit_inferred": null, "salary_source": "salary", "is_verified": null, "is_active": true, "tags": []}
-          - {"organization_slug": "example", "job_slug": "rounding", "salary_min": 50.123, "salary_max": 75.456, "salary_unit": "HOUR", "salary_unit_inferred": null, "salary_source": "salary", "is_verified": null, "is_active": true, "tags": []}
-          - {"organization_slug": "example", "job_slug": "single", "salary_min": 150000, "salary_max": 150000, "salary_unit": "YEAR", "salary_unit_inferred": null, "salary_source": "salary", "is_verified": null, "is_active": true, "tags": []}
-          - {"organization_slug": "example", "job_slug": "wide", "salary_min": 150000, "salary_max": 1200000, "salary_unit": "YEAR", "salary_unit_inferred": null, "salary_source": "salary", "is_verified": null, "is_active": true, "tags": []}
-          - {"organization_slug": "example", "job_slug": "inferred", "salary_min": 100000, "salary_max": 150000, "salary_unit": null, "salary_unit_inferred": "YEAR", "salary_source": "description", "is_verified": null, "is_active": true, "tags": []}
-          - {"organization_slug": "example", "job_slug": "threshold", "salary_min": 20000, "salary_max": 30000, "salary_unit": null, "salary_unit_inferred": "YEAR", "salary_source": "salary", "is_verified": null, "is_active": true, "tags": []}
-          - {"organization_slug": "example", "job_slug": "explicit_small", "salary_min": 10000, "salary_max": 15000, "salary_unit": "YEAR", "salary_unit_inferred": null, "salary_source": "salary", "is_verified": null, "is_active": true, "tags": []}
-          - {"organization_slug": "example", "job_slug": "inactive", "salary_min": 100000, "salary_max": 150000, "salary_unit": "YEAR", "salary_unit_inferred": null, "salary_source": "salary", "is_verified": null, "is_active": false, "tags": []}
-          - {"organization_slug": "example", "job_slug": "missing", "salary_min": null, "salary_max": null, "salary_unit": null, "salary_unit_inferred": null, "salary_source": null, "is_verified": null, "is_active": true, "tags": []}
-          - {"organization_slug": "example", "job_slug": "one_bound", "salary_min": 100000, "salary_max": null, "salary_unit": "YEAR", "salary_unit_inferred": null, "salary_source": "salary", "is_verified": null, "is_active": true, "tags": []}
-          - {"organization_slug": "example", "job_slug": "zero", "salary_min": 0, "salary_max": 150000, "salary_unit": "YEAR", "salary_unit_inferred": null, "salary_source": "salary", "is_verified": null, "is_active": true, "tags": []}
-          - {"organization_slug": "example", "job_slug": "negative", "salary_min": -1, "salary_max": 150000, "salary_unit": "YEAR", "salary_unit_inferred": null, "salary_source": "salary", "is_verified": null, "is_active": true, "tags": []}
-          - {"organization_slug": "example", "job_slug": "reversed", "salary_min": 100000, "salary_max": 90000, "salary_unit": "YEAR", "salary_unit_inferred": null, "salary_source": "salary", "is_verified": null, "is_active": true, "tags": []}
-          - {"organization_slug": "example", "job_slug": "unverified", "salary_min": 100000, "salary_max": 150000, "salary_unit": "YEAR", "salary_unit_inferred": null, "salary_source": "salary", "is_verified": false, "is_active": true, "tags": []}
-          - {"organization_slug": "example", "job_slug": "bad_source", "salary_min": 100000, "salary_max": 150000, "salary_unit": "YEAR", "salary_unit_inferred": null, "salary_source": "unknown", "is_verified": null, "is_active": true, "tags": []}
-          - {"organization_slug": "example", "job_slug": "missing_source", "salary_min": 100000, "salary_max": 150000, "salary_unit": "YEAR", "salary_unit_inferred": null, "salary_source": null, "is_verified": null, "is_active": true, "tags": []}
-          - {"organization_slug": "example", "job_slug": "missing_period", "salary_min": 100000, "salary_max": 150000, "salary_unit": null, "salary_unit_inferred": null, "salary_source": "salary", "is_verified": null, "is_active": true, "tags": []}
-          - {"organization_slug": "example", "job_slug": "invalid_explicit", "salary_min": 100000, "salary_max": 150000, "salary_unit": "invalid", "salary_unit_inferred": "YEAR", "salary_source": "salary", "is_verified": null, "is_active": true, "tags": []}
-          - {"organization_slug": "example", "job_slug": "invalid_inference", "salary_min": 100000, "salary_max": 150000, "salary_unit": null, "salary_unit_inferred": "HOUR", "salary_source": "salary", "is_verified": null, "is_active": true, "tags": []}
-          - {"organization_slug": "example", "job_slug": "ambiguous_small", "salary_min": 19999, "salary_max": 30000, "salary_unit": null, "salary_unit_inferred": "YEAR", "salary_source": "salary", "is_verified": null, "is_active": true, "tags": []}
-          - {"organization_slug": "example", "job_slug": "conflicting_level", "salary_min": 100000, "salary_max": 150000, "salary_unit": "YEAR", "salary_unit_inferred": null, "salary_source": "salary", "is_verified": null, "is_active": true, "tags": ["Junior", "Senior"]}
-          - {"organization_slug": "example", "job_slug": "duplicate_level", "salary_min": 100000, "salary_max": 150000, "salary_unit": "YEAR", "salary_unit_inferred": null, "salary_source": "salary", "is_verified": null, "is_active": true, "tags": ["Senior", "Senior"]}
-          - {"organization_slug": "example", "job_slug": "level-contract", "salary_min": 100000, "salary_max": 150000, "salary_unit": "YEAR", "salary_unit_inferred": null, "salary_source": "salary", "is_verified": null, "is_active": true, "tags": ["Contract"]}
-          - {"organization_slug": "example", "job_slug": "level-internship", "salary_min": 100000, "salary_max": 150000, "salary_unit": "YEAR", "salary_unit_inferred": null, "salary_source": "salary", "is_verified": null, "is_active": true, "tags": ["Internship"]}
-          - {"organization_slug": "example", "job_slug": "level-junior", "salary_min": 100000, "salary_max": 150000, "salary_unit": "YEAR", "salary_unit_inferred": null, "salary_source": "salary", "is_verified": null, "is_active": true, "tags": ["Junior"]}
-          - {"organization_slug": "example", "job_slug": "level-lead", "salary_min": 100000, "salary_max": 150000, "salary_unit": "YEAR", "salary_unit_inferred": null, "salary_source": "salary", "is_verified": null, "is_active": true, "tags": ["Lead"]}
-          - {"organization_slug": "example", "job_slug": "level-mid-level", "salary_min": 100000, "salary_max": 150000, "salary_unit": "YEAR", "salary_unit_inferred": null, "salary_source": "salary", "is_verified": null, "is_active": true, "tags": ["Mid-Level"]}
-          - {"organization_slug": "example", "job_slug": "level-staff", "salary_min": 100000, "salary_max": 150000, "salary_unit": "YEAR", "salary_unit_inferred": null, "salary_source": "salary", "is_verified": null, "is_active": true, "tags": ["Staff"]}
-          - {"organization_slug": "example", "job_slug": "nan", "salary_min": "NaN", "salary_max": 150000, "salary_unit": "YEAR", "salary_source": "salary", "is_active": true, "tags": []}
-          - {"organization_slug": "example", "job_slug": "infinity", "salary_min": 100000, "salary_max": "Infinity", "salary_unit": "YEAR", "salary_source": "salary", "is_active": true, "tags": []}
-          - {"organization_slug": "example", "job_slug": "overflow", "salary_min": 1e+307, "salary_max": 1e+308, "salary_unit": "HOUR", "salary_source": "salary", "is_active": true, "tags": []}
-      - input: ref("dim_organizations")
-        rows:
-          - {organization_slug: example, organization_id: example_id}
-    expect:
-      rows:
-        - {"job_slug": "explicit", "is_active": true, "is_salary_eligible": true, "salary_annual_min": 100000, "salary_annual_max": 150000, "salary_annual_midpoint": 125000.0, "job_level": "Senior", "remote_group": "Remote"}
-        - {"job_slug": "hourly", "is_active": true, "is_salary_eligible": true, "salary_annual_min": 104000, "salary_annual_max": 156000, "salary_annual_midpoint": 130000.0, "job_level": "Unspecified", "remote_group": "Other/unspecified"}
-        - {"job_slug": "daily", "is_active": true, "is_salary_eligible": true, "salary_annual_min": 130000, "salary_annual_max": 156000, "salary_annual_midpoint": 143000.0, "job_level": "Unspecified", "remote_group": "Other/unspecified"}
-        - {"job_slug": "weekly", "is_active": true, "is_salary_eligible": true, "salary_annual_min": 104000, "salary_annual_max": 156000, "salary_annual_midpoint": 130000.0, "job_level": "Unspecified", "remote_group": "Other/unspecified"}
-        - {"job_slug": "monthly", "is_active": true, "is_salary_eligible": true, "salary_annual_min": 120000, "salary_annual_max": 180000, "salary_annual_midpoint": 150000.0, "job_level": "Unspecified", "remote_group": "Other/unspecified"}
-        - {"job_slug": "rounding", "is_active": true, "is_salary_eligible": true, "salary_annual_min": 104255.84, "salary_annual_max": 156948.48, "salary_annual_midpoint": 130602.16, "job_level": "Unspecified", "remote_group": "Other/unspecified"}
-        - {"job_slug": "single", "is_active": true, "is_salary_eligible": true, "salary_annual_min": 150000, "salary_annual_max": 150000, "salary_annual_midpoint": 150000.0, "job_level": "Unspecified", "remote_group": "Other/unspecified"}
-        - {"job_slug": "wide", "is_active": true, "is_salary_eligible": true, "salary_annual_min": 150000, "salary_annual_max": 1200000, "salary_annual_midpoint": 675000.0, "job_level": "Unspecified", "remote_group": "Other/unspecified"}
-        - {"job_slug": "inferred", "is_active": true, "is_salary_eligible": true, "salary_annual_min": 100000, "salary_annual_max": 150000, "salary_annual_midpoint": 125000.0, "job_level": "Unspecified", "remote_group": "Other/unspecified"}
-        - {"job_slug": "threshold", "is_active": true, "is_salary_eligible": true, "salary_annual_min": 20000, "salary_annual_max": 30000, "salary_annual_midpoint": 25000.0, "job_level": "Unspecified", "remote_group": "Other/unspecified"}
-        - {"job_slug": "explicit_small", "is_active": true, "is_salary_eligible": true, "salary_annual_min": 10000, "salary_annual_max": 15000, "salary_annual_midpoint": 12500.0, "job_level": "Unspecified", "remote_group": "Other/unspecified"}
-        - {"job_slug": "inactive", "is_active": false, "is_salary_eligible": true, "salary_annual_min": 100000, "salary_annual_max": 150000, "salary_annual_midpoint": 125000.0, "job_level": "Unspecified", "remote_group": "Other/unspecified"}
-        - {"job_slug": "missing", "is_active": true, "is_salary_eligible": false, "salary_annual_min": null, "salary_annual_max": null, "salary_annual_midpoint": null, "job_level": "Unspecified", "remote_group": "Other/unspecified"}
-        - {"job_slug": "one_bound", "is_active": true, "is_salary_eligible": false, "salary_annual_min": null, "salary_annual_max": null, "salary_annual_midpoint": null, "job_level": "Unspecified", "remote_group": "Other/unspecified"}
-        - {"job_slug": "zero", "is_active": true, "is_salary_eligible": false, "salary_annual_min": null, "salary_annual_max": null, "salary_annual_midpoint": null, "job_level": "Unspecified", "remote_group": "Other/unspecified"}
-        - {"job_slug": "negative", "is_active": true, "is_salary_eligible": false, "salary_annual_min": null, "salary_annual_max": null, "salary_annual_midpoint": null, "job_level": "Unspecified", "remote_group": "Other/unspecified"}
-        - {"job_slug": "reversed", "is_active": true, "is_salary_eligible": false, "salary_annual_min": null, "salary_annual_max": null, "salary_annual_midpoint": null, "job_level": "Unspecified", "remote_group": "Other/unspecified"}
-        - {"job_slug": "unverified", "is_active": true, "is_salary_eligible": false, "salary_annual_min": null, "salary_annual_max": null, "salary_annual_midpoint": null, "job_level": "Unspecified", "remote_group": "Other/unspecified"}
-        - {"job_slug": "bad_source", "is_active": true, "is_salary_eligible": false, "salary_annual_min": null, "salary_annual_max": null, "salary_annual_midpoint": null, "job_level": "Unspecified", "remote_group": "Other/unspecified"}
-        - {"job_slug": "missing_source", "is_active": true, "is_salary_eligible": false, "salary_annual_min": null, "salary_annual_max": null, "salary_annual_midpoint": null, "job_level": "Unspecified", "remote_group": "Other/unspecified"}
-        - {"job_slug": "missing_period", "is_active": true, "is_salary_eligible": false, "salary_annual_min": null, "salary_annual_max": null, "salary_annual_midpoint": null, "job_level": "Unspecified", "remote_group": "Other/unspecified"}
-        - {"job_slug": "invalid_explicit", "is_active": true, "is_salary_eligible": false, "salary_annual_min": null, "salary_annual_max": null, "salary_annual_midpoint": null, "job_level": "Unspecified", "remote_group": "Other/unspecified"}
-        - {"job_slug": "invalid_inference", "is_active": true, "is_salary_eligible": false, "salary_annual_min": null, "salary_annual_max": null, "salary_annual_midpoint": null, "job_level": "Unspecified", "remote_group": "Other/unspecified"}
-        - {"job_slug": "ambiguous_small", "is_active": true, "is_salary_eligible": false, "salary_annual_min": null, "salary_annual_max": null, "salary_annual_midpoint": null, "job_level": "Unspecified", "remote_group": "Other/unspecified"}
-        - {"job_slug": "conflicting_level", "is_active": true, "is_salary_eligible": true, "salary_annual_min": 100000, "salary_annual_max": 150000, "salary_annual_midpoint": 125000.0, "job_level": "Unspecified", "remote_group": "Other/unspecified"}
-        - {"job_slug": "duplicate_level", "is_active": true, "is_salary_eligible": true, "salary_annual_min": 100000, "salary_annual_max": 150000, "salary_annual_midpoint": 125000.0, "job_level": "Senior", "remote_group": "Other/unspecified"}
-        - {"job_slug": "level-contract", "is_active": true, "is_salary_eligible": true, "salary_annual_min": 100000, "salary_annual_max": 150000, "salary_annual_midpoint": 125000.0, "job_level": "Contract", "remote_group": "Other/unspecified"}
-        - {"job_slug": "level-internship", "is_active": true, "is_salary_eligible": true, "salary_annual_min": 100000, "salary_annual_max": 150000, "salary_annual_midpoint": 125000.0, "job_level": "Internship", "remote_group": "Other/unspecified"}
-        - {"job_slug": "level-junior", "is_active": true, "is_salary_eligible": true, "salary_annual_min": 100000, "salary_annual_max": 150000, "salary_annual_midpoint": 125000.0, "job_level": "Junior", "remote_group": "Other/unspecified"}
-        - {"job_slug": "level-lead", "is_active": true, "is_salary_eligible": true, "salary_annual_min": 100000, "salary_annual_max": 150000, "salary_annual_midpoint": 125000.0, "job_level": "Lead", "remote_group": "Other/unspecified"}
-        - {"job_slug": "level-mid-level", "is_active": true, "is_salary_eligible": true, "salary_annual_min": 100000, "salary_annual_max": 150000, "salary_annual_midpoint": 125000.0, "job_level": "Mid-Level", "remote_group": "Other/unspecified"}
-        - {"job_slug": "level-staff", "is_active": true, "is_salary_eligible": true, "salary_annual_min": 100000, "salary_annual_max": 150000, "salary_annual_midpoint": 125000.0, "job_level": "Staff", "remote_group": "Other/unspecified"}
-        - {"job_slug": "nan", "is_active": true, "is_salary_eligible": false, "salary_annual_min": null, "salary_annual_max": null, "salary_annual_midpoint": null, "job_level": "Unspecified", "remote_group": "Other/unspecified"}
-        - {"job_slug": "infinity", "is_active": true, "is_salary_eligible": false, "salary_annual_min": null, "salary_annual_max": null, "salary_annual_midpoint": null, "job_level": "Unspecified", "remote_group": "Other/unspecified"}
-        - {"job_slug": "overflow", "is_active": true, "is_salary_eligible": false, "salary_annual_min": null, "salary_annual_max": null, "salary_annual_midpoint": null, "job_level": "Unspecified", "remote_group": "Other/unspecified"}
