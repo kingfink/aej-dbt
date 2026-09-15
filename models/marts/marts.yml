@@ -100,6 +100,53 @@ models:
               arguments:
                 values: [true, false]
                 quote: false
+      - name: level
+        data_type: string
+        description: The job's single level tag. Null when the job has no level tag or more than one, as a few legacy inactive jobs do, rather than guessing between them.
+        tests:
+          - accepted_values:
+              arguments:
+                values: [Contract, Internship, Junior, Lead, Mid-Level, Senior, Staff]
+      - name: role_type
+        data_type: string
+        description: The job's single role type tag, Individual Contributor or People Manager. Null when the job has no role type tag or more than one.
+        tests:
+          - accepted_values:
+              arguments:
+                values: [Individual Contributor, People Manager]
+
+  - name: fct_jobs_daily
+    description: |
+      One row per UTC date and job listed on the site at any point during the date: from the date the job was added through its removal date, or through the current date while it is active. Listing periods come from each job's current added and removed dates, not from snapshot history. An inactive job without a removal date, or with a removal date before its added date, as legacy jobs from a 2024 bulk removal have, has no rows because its listing period is unknown. Job attributes, including salary, level, role type, and remote status, stay in `dim_jobs` and reflect current state, so a summary for a past date applies current attributes to the jobs listed on that date. For current salary coverage and pay summaries, use the latest date.
+    config:
+      group: site_content
+    columns:
+      - name: job_daily_id
+        data_type: string
+        description: Stable surrogate key generated from the date and job.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+          - unique
+      - name: date_day
+        data_type: date
+        description: UTC date on which the job was listed.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+      - name: job_id
+        data_type: string
+        description: Job dimension key.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref("dim_jobs")
+                field: job_id
 
   - name: dim_organizations
     description: One row per organization published on Analytics Engineering Jobs.

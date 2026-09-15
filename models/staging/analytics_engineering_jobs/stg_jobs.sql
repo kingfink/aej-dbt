@@ -57,5 +57,24 @@ select
             "j.salary_max", "coalesce(j.salary_unit, j.salary_unit_inferred)"
         )
     }} as salary_annual_max,
-    'Remote' in unnest(j.tags) as is_remote
+    'Remote' in unnest(j.tags) as is_remote,
+    (
+        select if(count(*) = 1, any_value(t), null)
+        from unnest(j.tags) as t
+        where
+            t in (
+                "Contract",
+                "Internship",
+                "Junior",
+                "Lead",
+                "Mid-Level",
+                "Senior",
+                "Staff"
+            )
+    ) as level,
+    (
+        select if(count(*) = 1, any_value(t), null)
+        from unnest(j.tags) as t
+        where t in ("Individual Contributor", "People Manager")
+    ) as role_type
 from frontmatter as j

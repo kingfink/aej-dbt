@@ -109,7 +109,9 @@
 - The loader never deletes rows for removed or renamed files, so a file that no longer exists in the site repository keeps its last row in the source and its current version in the snapshot.
 - Keep salary observations at job grain in `dim_jobs`, preserving raw salary text and exposing only annual minimum and maximum as salary-specific analytics fields. Compute both annual bounds in `stg_jobs` with the shared `annualize_salary` macro. Check upstream salary validation guarantees with data tests rather than duplicating those checks as model filters; explicit periods win over stored annual inference, and dbt never re-extracts text or invents a period. Store annual bounds as whole-dollar INT64 values and retain missing-pay jobs for coverage denominators.
 - Derive salary eligibility from both annual bounds being present and the midpoint from their arithmetic mean. Current salary summaries also filter `is_active`. Published median and continuous 25th/75th-percentile midpoint summaries require at least 10 observations, their count, and an as-of date. Distinguish advertised pay from earnings and usable USD pay from disclosure in any currency.
-- Expose `is_remote` from the Remote tag and preserve location restrictions; false does not establish onsite work. Use the existing tags for level breakdowns rather than adding another modeled field.
+- Expose `is_remote` from the Remote tag and preserve location restrictions; false does not establish onsite work.
+- Expose `level` and `role_type` in `stg_jobs` from the job's single matching tag, and leave them null when a job has none or several rather than choosing one. Steep dimensions accept only string or boolean columns, so level breakdowns cannot read the `tags` array directly.
+- Count listed jobs over time with `fct_jobs_daily`, one row per UTC date and listed job derived from the current added and removed dates. Keep job attributes in `dim_jobs`; the fact carries only the date and job key.
 
 ## Web engagement modeling
 

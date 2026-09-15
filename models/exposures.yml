@@ -82,8 +82,20 @@ exposures:
       - ref("dim_jobs")
       - ref("fct_email_events")
       - ref("fct_form_submissions")
+      - ref("fct_jobs_daily")
       - ref("fct_search_performance_daily")
       - ref("fct_web_events")
+    owner:
+      name: Tim Finkel
+
+  - name: steep_fct_jobs_daily
+    label: "Steep module: Daily Jobs"
+    type: analysis
+    maturity: low
+    description: One row per UTC date and listed job, with current active-job counts, usable USD salary coverage, and posted-range midpoint median and middle-50-percent summaries on the latest date, split by job level, role type, and remote status.
+    depends_on:
+      - ref("dim_jobs")
+      - ref("fct_jobs_daily")
     owner:
       name: Tim Finkel
 
