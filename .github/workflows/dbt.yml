@@ -27,7 +27,6 @@ jobs:
 
   build:
     name: dbt build
-    needs: parse
     if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     concurrency:
@@ -45,4 +44,13 @@ jobs:
           enable-cache: true
           python-version: "3.13"
       - run: uv sync --locked
-      - run: ./bin/mdbt build --select package:this
+      # Slim CI: build modified project resources and their descendants, and
+      # defer unmodified parents to production. Falls back to a full build
+      # until the scheduled production sync has saved a manifest.
+      - name: Build modified resources
+        run: |
+          if uv run modal volume get aej-dbt-prod-state manifest.json - > /dev/null; then
+            ./bin/mdbt build --select state:modified+,package:this --defer --state /prod-state
+          else
+            ./bin/mdbt build --select package:this
+          fi

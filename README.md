@@ -195,7 +195,7 @@ Configure a Healthchecks.io check named `aej-dbt production sync` with:
 - Grace time: 60 minutes
 - Notification integration: email, Slack, or your preferred Healthchecks.io alert destination
 
-The first Sunday run in UTC performs a full refresh; all other runs are incremental. `base_ga4__events` and `base_ga4__users` remain incremental because `dbt_project.yml` sets `+full_refresh: false` for them. Snapshots ignore `--full-refresh`, so the weekly refresh keeps the site-content history in `snp_jobs` and `snp_organizations`. The Search Console microbatch facts rebuild every monthly batch from their `begin` date during the refresh, which refreshes job and organization keys on older months. `fct_web_events` rebuilds every event during the refresh, which fills any gap left by a sync outage longer than its three-day lookback, picks up older PostHog backfills, and refreshes dimension keys on older events. A `modal.Dict` named `aej-dbt-state` tracks the weekly refresh and releases a failed claim so the next run can retry.
+The first Sunday run in UTC performs a full refresh; all other runs are incremental. `base_ga4__events` and `base_ga4__users` remain incremental because `dbt_project.yml` sets `+full_refresh: false` for them. Snapshots ignore `--full-refresh`, so the weekly refresh keeps the site-content history in `snp_jobs` and `snp_organizations`. The Search Console microbatch facts rebuild every monthly batch from their `begin` date during the refresh, which refreshes job and organization keys on older months. `fct_web_events` rebuilds every event during the refresh, which fills any gap left by a sync outage longer than its three-day lookback, picks up older PostHog backfills, and refreshes dimension keys on older events. A `modal.Dict` named `aej-dbt-state` tracks the weekly refresh and releases a failed claim so the next run can retry. After a successful build, the sync saves its manifest to the `aej-dbt-prod-state` Modal volume for Slim CI.
 
 The scheduled function sends `/start` when it begins, a success ping after both dbt and Parquet publishing finish, and `/fail` if either step raises an error. Healthchecks pings are best-effort: monitoring outages do not block the sync.
 
@@ -211,17 +211,21 @@ uv run modal deploy app.py
 
 Pull requests run `Ruff`, `Unit tests`, `dbt parse`, and `dbt build` checks. Pushes to `master` run Ruff, unit tests, and dbt parse before the `Deploy` workflow updates the Modal app.
 
-The `dbt parse` check installs dbt locally on the GitHub-hosted runner, resolves the locked packages, and parses the project without warehouse credentials. It runs for every pull request, including pull requests from forks.
+The `dbt parse` check installs dbt locally on the GitHub-hosted runner, resolves the locked packages, and parses the project without warehouse credentials. It runs for every pull request, including pull requests from forks, in parallel with `dbt build`.
 
-The `dbt build` check runs project-owned models, seeds, and tests in Modal for pull requests whose branch is in this repository. It uses the `ci` target and writes to the pull request's isolated `dbt_ci_<PR number>` dataset. A dbt `on-run-start` hook configures that dataset with a 30-day default table and view expiration before dbt creates relations. BigQuery removes expired relations, while the empty dataset is intentionally retained. Pull requests from forks skip this credentialed check because GitHub does not provide repository secrets to fork workflows.
+The `dbt build` check runs in Modal for pull requests whose branch is in this repository. It uses the `ci` target and writes to the pull request's isolated `dbt_ci_<PR number>` dataset. A dbt `on-run-start` hook configures that dataset with a 30-day default table and view expiration before dbt creates relations. BigQuery removes expired relations, while the empty dataset is intentionally retained. Pull requests from forks skip this credentialed check because GitHub does not provide repository secrets to fork workflows.
+
+The check is Slim CI: it builds modified project resources and their descendants and defers other parents to production, using the manifest from the last successful production sync. Without that manifest, it builds every project-owned resource.
+
+CI does not `dbt clone` unmodified incremental descendants from production, so they rebuild full history in a new pull request's dataset. Cloning saved only about 30 seconds and would stop CI from checking older rows; revisit it if those rebuilds grow to several minutes.
 
 Model commands should go through `mdbt`, which keeps Modal dispatch, target selection, and package-lock handling in one place. Local shells can use `mdbt` because `.envrc` adds `bin` to `PATH`; GitHub Actions uses the explicit path:
 
 ```bash
-AEJ_DBT_TARGET=ci AEJ_DBT_PR_NUMBER=123 ./bin/mdbt build --select package:this
+AEJ_DBT_TARGET=ci AEJ_DBT_PR_NUMBER=123 ./bin/mdbt build --select state:modified+,package:this --defer --state /prod-state
 ```
 
-Configure the default-branch ruleset to require the exact check names `Ruff`, `Unit tests`, `dbt parse`, and `dbt build`. Keep the workflow-level dbt trigger unfiltered so required check names are always reported; `package:this` inside the build limits warehouse work to project-owned resources, so the installed GA4 package's models are not rebuilt.
+Configure the default-branch ruleset to require the exact check names `Ruff`, `Unit tests`, `dbt parse`, and `dbt build`. Keep the workflow-level dbt trigger unfiltered so required check names are always reported; `package:this` inside the build keeps the installed GA4 package's models from being rebuilt.
 
 Create a Modal token for GitHub Actions, then add its values as repository secrets under **Settings → Secrets and variables → Actions**:
 

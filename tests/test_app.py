@@ -256,6 +256,10 @@ class ScheduledProductionSyncTest(unittest.TestCase):
                 side_effect=lambda **kwargs: events.append(("dbt", kwargs)),
             ),
             patch(
+                "app.save_prod_state",
+                side_effect=lambda: events.append(("save_state",)),
+            ),
+            patch(
                 "app.execute_parquet_publish",
                 side_effect=lambda: events.append(("publish",)),
             ),
@@ -267,6 +271,7 @@ class ScheduledProductionSyncTest(unittest.TestCase):
             [
                 ("ping", "start"),
                 ("dbt", {"cmd": "build", "target": "prd"}),
+                ("save_state",),
                 ("publish",),
                 ("ping", ""),
             ],
@@ -293,6 +298,10 @@ class ScheduledProductionSyncTest(unittest.TestCase):
             ),
             patch("app.execute_dbt", side_effect=flaky_dbt),
             patch(
+                "app.save_prod_state",
+                side_effect=lambda: events.append(("save_state",)),
+            ),
+            patch(
                 "app.execute_parquet_publish",
                 side_effect=lambda: events.append(("publish",)),
             ),
@@ -305,6 +314,7 @@ class ScheduledProductionSyncTest(unittest.TestCase):
                 ("ping", "start"),
                 ("dbt", {"cmd": "build", "target": "prd"}),
                 ("dbt", {"cmd": "retry", "target": "prd"}),
+                ("save_state",),
                 ("publish",),
                 ("ping", ""),
             ],
@@ -322,6 +332,7 @@ class ScheduledProductionSyncTest(unittest.TestCase):
             patch("app.should_full_refresh", return_value=True),
             patch("app.ping_healthcheck"),
             patch("app.execute_dbt") as execute_dbt,
+            patch("app.save_prod_state"),
             patch("app.execute_parquet_publish"),
         ):
             clock.now.return_value = sunday
@@ -343,12 +354,14 @@ class ScheduledProductionSyncTest(unittest.TestCase):
             patch("app.should_full_refresh", return_value=True),
             patch("app.ping_healthcheck") as ping_healthcheck,
             patch("app.execute_dbt", side_effect=dbt_error),
+            patch("app.save_prod_state") as save_prod_state,
             patch("app.execute_parquet_publish") as publish,
             self.assertRaises(subprocess.CalledProcessError),
         ):
             clock.now.return_value = sunday
             app.scheduled_production_sync.local()
 
+        save_prod_state.assert_not_called()
         publish.assert_not_called()
         self.assertEqual(state, {"last_full_refresh": "2026-06-07"})
         self.assertEqual(
@@ -369,11 +382,13 @@ class ScheduledProductionSyncTest(unittest.TestCase):
             patch("app.should_full_refresh", return_value=False),
             patch("app.ping_healthcheck") as ping_healthcheck,
             patch("app.execute_dbt", side_effect=dbt_error),
+            patch("app.save_prod_state") as save_prod_state,
             patch("app.execute_parquet_publish") as publish,
             self.assertRaises(subprocess.CalledProcessError),
         ):
             app.scheduled_production_sync.local()
 
+        save_prod_state.assert_not_called()
         publish.assert_not_called()
         self.assertEqual(
             ping_healthcheck.call_args_list,
@@ -393,6 +408,7 @@ class ScheduledProductionSyncTest(unittest.TestCase):
             patch("app.should_full_refresh", return_value=False),
             patch("app.ping_healthcheck") as ping_healthcheck,
             patch("app.execute_dbt") as execute_dbt,
+            patch("app.save_prod_state"),
             patch("app.execute_parquet_publish", side_effect=publish_error),
             self.assertRaisesRegex(RuntimeError, "GCS upload failed"),
         ):
