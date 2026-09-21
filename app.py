@@ -22,7 +22,9 @@ class ModelExport:
 def load_model_exports(
     path: Path | None = None,
 ) -> tuple[ModelExport, ...]:
-    path = path or Path(__file__).with_name("parquet_exports.json")
+    # Relative to the working directory, the mounted dbt project in Modal.
+    # The code mount leaves out app.py, so __file__ is /root/app.py there.
+    path = path or Path("parquet_exports.json")
     with path.open() as file:
         config = json.load(file)
     return tuple(
