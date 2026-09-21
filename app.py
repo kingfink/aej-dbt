@@ -1,6 +1,7 @@
 import json
 import os
 import shlex
+import shutil
 import subprocess
 import tempfile
 from dataclasses import dataclass
@@ -8,6 +9,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import modal
+from modal.file_pattern_matcher import FilePatternMatcher
 
 
 @dataclass(frozen=True)
@@ -247,19 +249,25 @@ image = (
     .add_local_file("dbt_project.yml", "/workspace/aej-dbt/dbt_project.yml", copy=True)
     .add_local_file("profiles.yml", "/workspace/aej-dbt/profiles.yml", copy=True)
     .run_commands("bash scripts/dbt-deps")
+    # Mount only what dbt reads. Modal hashes every mounted file on each run,
+    # and a denylist matches only top-level names, so nested worktrees and
+    # their virtualenvs under `.claude/` added thousands of files to startup.
     .add_local_dir(
         ".",
         remote_path="/workspace/aej-dbt",
-        ignore=[
-            ".env*",
-            ".git",
-            ".ruff_cache",
-            ".venv",
-            "__pycache__",
-            "dbt_packages",
-            "logs",
-            "target",
-        ],
+        ignore=~FilePatternMatcher(
+            "analyses",
+            "macros",
+            "models",
+            "seeds",
+            "snapshots",
+            "tests",
+            "dbt_project.yml",
+            "package-lock.yml",
+            "packages.yml",
+            "parquet_exports.json",
+            "profiles.yml",
+        ),
     )
 )
 
@@ -272,6 +280,18 @@ healthchecks_secret = modal.Secret.from_name(
     "aej-dbt-healthchecks",
     required_keys=["HEALTHCHECKS_PING_URL"],
 )
+
+# Holds the manifest of the last successful production build. Slim CI reads it
+# as `--state` to select modified models and defer everything else to
+# production. Created on first use.
+prod_state = modal.Volume.from_name("aej-dbt-prod-state", create_if_missing=True)
+PROD_STATE_DIR = Path("/prod-state")
+
+
+def save_prod_state() -> None:
+    shutil.copy2("target/manifest.json", PROD_STATE_DIR / "manifest.json")
+    prod_state.commit()
+
 
 # Persists the date of the last weekly full refresh so the schedule can run one
 # without depending on the cron's exact shape. Created on first use.
@@ -289,7 +309,12 @@ def should_full_refresh(now: datetime, last_full_refresh: str) -> bool:
     return now.weekday() == 6 and last_full_refresh != now.date().isoformat()
 
 
-@app.function(image=image, secrets=[bigquery_secret], timeout=60 * 60)
+@app.function(
+    image=image,
+    secrets=[bigquery_secret],
+    timeout=60 * 60,
+    volumes={PROD_STATE_DIR: prod_state},
+)
 def run_dbt(
     cmd: str = "build",
     target: str = "",
@@ -313,6 +338,7 @@ def publish_parquet() -> None:
     image=image,
     secrets=[bigquery_secret, healthchecks_secret],
     timeout=60 * 60,
+    volumes={PROD_STATE_DIR: prod_state},
     schedule=modal.Cron("0 */6 * * *"),
 )
 def scheduled_production_sync() -> None:
@@ -330,6 +356,7 @@ def scheduled_production_sync() -> None:
             cmd="build --full-refresh" if full_refresh else "build",
             target="prd",
         )
+        save_prod_state()
         execute_parquet_publish()
     except Exception:
         if full_refresh:
