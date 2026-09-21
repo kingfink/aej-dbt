@@ -49,6 +49,7 @@ models:
                   - apply_modal_submit
                   - autocapture
                   - page_leave
+                  - page_not_found
                   - page_view
                   - rageclick
                   - recording_observed
