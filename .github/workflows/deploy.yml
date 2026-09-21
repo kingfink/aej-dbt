@@ -39,3 +39,8 @@ jobs:
           python-version: "3.13"
       - run: uv sync --locked
       - run: uv run modal deploy app.py
+      # Smoke test the deployed app end to end. Republishing the current
+      # production tables is idempotent, and a break surfaces here rather than
+      # at the next scheduled sync.
+      - name: Publish Parquet from the deployed app
+        run: uv run python -c "import modal; modal.Function.from_name('aej-dbt', 'publish_parquet').remote()"
