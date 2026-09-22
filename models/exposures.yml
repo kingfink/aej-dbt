@@ -124,6 +124,17 @@ exposures:
     owner:
       name: Tim Finkel
 
+  - name: steep_fct_web_sessions
+    label: "Steep module: Web Sessions Fact"
+    type: analysis
+    maturity: low
+    description: One row per captured PostHog session with provisional active-job engagement and apply-click outcome flags for the audience-growth measurement contract.
+    depends_on:
+      - ref("dim_web_sessions")
+      - ref("fct_web_sessions")
+    owner:
+      name: Tim Finkel
+
   - name: steep_dim_pages
     label: "Steep module: Pages"
     type: analysis
