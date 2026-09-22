@@ -46,6 +46,19 @@ select
     nullif(
         json_value(properties, '$."$session_entry_utm_campaign"'), ""
     ) as session_utm_campaign,
+    nullif(
+        json_value(properties, "$.analytics_persistence_mode"), ""
+    ) as analytics_persistence_mode,
+    safe_cast(json_value(properties, '$."$virt_is_bot"') as bool) as posthog_is_bot,
+    nullif(
+        json_value(properties, '$."$virt_traffic_type"'), ""
+    ) as posthog_traffic_type,
+    nullif(
+        json_value(properties, '$."$virt_traffic_category"'), ""
+    ) as posthog_traffic_category,
+    nullif(json_value(properties, '$."$browser"'), "") as browser,
+    nullif(json_value(properties, '$."$device_type"'), "") as device_type,
+    nullif(json_value(properties, '$."$geoip_country_code"'), "") as country_code,
     bq_ingested_timestamp as loaded_ts
 from {{ source("posthog", "events") }}
 where

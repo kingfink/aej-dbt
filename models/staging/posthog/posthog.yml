@@ -89,6 +89,26 @@ models:
         description: Lowercased campaign medium on the session entry URL. Repeated on every event in the session.
       - name: session_utm_campaign
         description: Campaign name on the session entry URL. Repeated on every event in the session.
+      - name: analytics_persistence_mode
+        description: Site-supplied analytics persistence mode. `memory` means pre-consent in-memory capture and `persistent` means capture after consent. Null is retained for historical events collected before this property was added.
+        tests:
+          - accepted_values:
+              arguments:
+                values:
+                  - memory
+                  - persistent
+      - name: posthog_is_bot
+        description: PostHog's virtual likely-bot classification when materialized by the source export. The current batch export does not materialize virtual properties, so null means unavailable rather than human.
+      - name: posthog_traffic_type
+        description: PostHog's virtual traffic type when materialized by the source export. Null means unavailable, not regular traffic.
+      - name: posthog_traffic_category
+        description: PostHog's virtual traffic category when materialized by the source export. Null means unavailable, not regular traffic.
+      - name: browser
+        description: Browser family detected by PostHog, retained for traffic-quality sensitivity analysis.
+      - name: device_type
+        description: Device type detected by PostHog, retained for traffic-quality sensitivity analysis.
+      - name: country_code
+        description: Country code detected by PostHog, retained for traffic-quality sensitivity analysis rather than hard-coded exclusion.
       - name: loaded_ts
         description: Timestamp when the batch export loaded the event into BigQuery.
         tests:

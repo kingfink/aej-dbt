@@ -274,6 +274,34 @@ models:
       - name: session_utm_campaign
         data_type: string
         description: Campaign name on the session entry URL.
+      - name: analytics_persistence_mode
+        data_type: string
+        description: Site-supplied analytics persistence mode. `memory` is pre-consent in-memory capture, `persistent` is capture after consent, `mixed` is a session containing both, and null is historical unknown.
+        tests:
+          - accepted_values:
+              arguments:
+                values:
+                  - memory
+                  - persistent
+                  - mixed
+      - name: posthog_is_bot
+        data_type: boolean
+        description: PostHog's virtual likely-bot classification when available from the export. Null is unknown and must not be interpreted as human.
+      - name: posthog_traffic_type
+        data_type: string
+        description: PostHog's virtual traffic type when available from the export. Null is unknown; `mixed` means event-level classifications differed within the session.
+      - name: posthog_traffic_category
+        data_type: string
+        description: PostHog's virtual traffic category when available from the export. Null is unknown; `mixed` means event-level classifications differed within the session.
+      - name: browser
+        data_type: string
+        description: Browser family detected by PostHog for traffic-quality sensitivity analysis.
+      - name: device_type
+        data_type: string
+        description: Device type detected by PostHog for traffic-quality sensitivity analysis.
+      - name: country_code
+        data_type: string
+        description: Country code detected by PostHog for sensitivity analysis. This field does not encode any geography-based exclusion.
       - name: channel
         data_type: string
         description: |
@@ -310,6 +338,46 @@ models:
                   - referral
                   - sms
                   - unknown
+
+  - name: fct_web_sessions
+    description: |
+      One row per captured PostHog session with the provisional audience-growth outcome flags. An engaged job-seeker session reached at least one job-detail page while that job was active on the event date. The apply-click flag records whether the same session generated any outbound apply click. Date ranges attribute the session to its earliest captured event, which is a proposed time basis that must be approved against the activity-window alternative. This is a captured-session fact, not a unique-person count, and no geography, browser, device, persistence mode, or traffic classification is excluded.
+    config:
+      group: web_engagement
+    columns:
+      - name: session_id
+        data_type: string
+        description: Web session dimension key.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+          - unique
+          - relationships:
+              arguments:
+                to: ref("dim_web_sessions")
+                field: session_id
+      - name: session_started_ts
+        data_type: timestamp
+        description: Timestamp of the earliest captured event in the session, in UTC.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+      - name: has_active_job_view
+        data_type: boolean
+        description: Whether the session contained a page view attributed to a job that was active on the event date.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+      - name: has_apply_click
+        data_type: boolean
+        description: Whether the session contained at least one outbound apply click.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
 
   - name: fct_form_submissions
     description: One row per legacy Webflow or current Netlify form submission, linked to known subscribers and site-content dimensions when matching records exist.
@@ -1338,3 +1406,42 @@ unit_tests:
         - {source_session_id: "direct", session_started_ts: "2026-09-01 00:10:00+00", channel: direct}
         - {source_session_id: "referral", session_started_ts: "2026-09-01 00:11:00+00", channel: referral}
         - {source_session_id: "no_referrer", session_started_ts: "2026-09-01 00:12:00+00", channel: unknown}
+
+  - name: dim_web_sessions_preserves_measurement_provenance
+    description: Persistence and traffic-quality fields aggregate to the session grain without inventing values for historical events, and geography remains descriptive rather than exclusionary.
+    model: dim_web_sessions
+    given:
+      - input: ref("stg_posthog__events")
+        rows:
+          - {session_id: "known", event_ts: "2026-09-20 00:00:00+00", analytics_persistence_mode: memory, posthog_is_bot: false, posthog_traffic_type: Regular, posthog_traffic_category: regular, browser: Chrome, device_type: Desktop, country_code: SG, session_referring_domain: "$direct"}
+          - {session_id: "known", event_ts: "2026-09-20 00:01:00+00", analytics_persistence_mode: persistent, posthog_is_bot: false, posthog_traffic_type: Regular, posthog_traffic_category: regular, browser: Chrome, device_type: Desktop, country_code: SG, session_referring_domain: "$direct"}
+          - {session_id: "historical", event_ts: "2026-09-01 00:00:00+00", analytics_persistence_mode: null, posthog_is_bot: null, posthog_traffic_type: null, posthog_traffic_category: null, browser: Firefox, device_type: Desktop, country_code: US, session_referring_domain: "$direct"}
+      - input: ref("channel_definitions")
+        rows: []
+    expect:
+      rows:
+        - {source_session_id: "known", analytics_persistence_mode: mixed, posthog_is_bot: false, posthog_traffic_type: Regular, posthog_traffic_category: regular, browser: Chrome, device_type: Desktop, country_code: SG}
+        - {source_session_id: "historical", analytics_persistence_mode: null, posthog_is_bot: null, posthog_traffic_type: null, posthog_traffic_category: null, browser: Firefox, device_type: Desktop, country_code: US}
+
+  - name: fct_web_sessions_derives_audience_growth_outcomes
+    description: Sessions are engaged only when a captured page view maps to a job active on that date; apply clicks remain a separate session-level guardrail flag.
+    model: fct_web_sessions
+    given:
+      - input: ref("dim_web_sessions")
+        rows:
+          - {session_id: "engaged", session_started_ts: "2026-09-20 00:00:00+00"}
+          - {session_id: "inactive_job", session_started_ts: "2026-09-20 01:00:00+00"}
+          - {session_id: "no_job", session_started_ts: "2026-09-20 02:00:00+00"}
+      - input: ref("fct_web_events")
+        rows:
+          - {session_id: "engaged", event_type: page_view, event_ts: "2026-09-20 00:00:00+00", job_id: "job_1"}
+          - {session_id: "engaged", event_type: apply_click, event_ts: "2026-09-20 00:05:00+00", job_id: "job_1"}
+          - {session_id: "inactive_job", event_type: page_view, event_ts: "2026-09-20 01:00:00+00", job_id: "job_2"}
+      - input: ref("fct_jobs_daily")
+        rows:
+          - {job_daily_id: "active_job_day", date_day: "2026-09-20", job_id: "job_1"}
+    expect:
+      rows:
+        - {session_id: "engaged", session_started_ts: "2026-09-20 00:00:00+00", has_active_job_view: true, has_apply_click: true}
+        - {session_id: "inactive_job", session_started_ts: "2026-09-20 01:00:00+00", has_active_job_view: false, has_apply_click: false}
+        - {session_id: "no_job", session_started_ts: "2026-09-20 02:00:00+00", has_active_job_view: false, has_apply_click: false}
