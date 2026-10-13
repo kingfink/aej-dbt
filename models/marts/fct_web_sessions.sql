@@ -1,30 +1,36 @@
 with
-    session_outcomes as (
+    sessions as (
         select
-            e.session_id,
-            logical_or(
-                e.event_type = "page_view" and active_job.job_daily_id is not null
-            ) as has_active_job_view,
-            logical_or(e.event_type = "apply_click") as has_apply_click,
+            e.session_id as source_session_id,
+            min(e.event_ts) as session_started_ts,
+            countif(e.event_type = "page_view") as page_view_count,
             count(
                 distinct if(e.event_type = "page_view", e.page_path, null)
-            ) as page_path_count
-        from {{ ref("fct_web_events") }} as e
+            ) as distinct_page_count,
+            countif(
+                e.event_type = "page_view"
+                and date(e.event_ts)
+                between j.date_added and if(j.is_active, current_date(), j.date_removed)
+            ) as active_job_page_view_count,
+            countif(e.event_type = "apply_click") as apply_click_count
+        from {{ ref("stg_posthog__events") }} as e
         left join
-            {{ ref("fct_jobs_daily") }} as active_job
-            on e.job_id = active_job.job_id
-            and date(e.event_ts) = active_job.date_day
+            {{ ref("dim_jobs") }} as j
+            on e.organization_slug = j.organization_slug
+            and e.job_slug = j.job_slug
         where e.session_id is not null
-        group by 1
+        group by e.session_id
     )
 
 select
-    s.session_id,
+    ws.session_id,
     s.session_started_ts,
-    coalesce(o.has_active_job_view, false) as has_active_job_view,
-    coalesce(o.has_apply_click, false) as has_apply_click,
-    coalesce(
-        o.has_active_job_view and (o.page_path_count >= 2 or o.has_apply_click), false
-    ) as is_engaged_job_seeker
-from {{ ref("dim_web_sessions") }} as s
-left join session_outcomes as o on s.session_id = o.session_id
+    s.page_view_count,
+    s.distinct_page_count,
+    s.active_job_page_view_count,
+    s.apply_click_count,
+    s.active_job_page_view_count > 0
+    and (s.distinct_page_count >= 2 or s.apply_click_count > 0) as is_engaged_job_seeker
+from sessions as s
+left join
+    {{ ref("dim_web_sessions") }} as ws on s.source_session_id = ws.source_session_id
