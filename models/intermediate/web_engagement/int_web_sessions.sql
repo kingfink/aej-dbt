@@ -16,6 +16,9 @@ select
     count(
         distinct if(e.event_type = "page_view", e.page_path, null)
     ) as distinct_page_count,
+    countif(
+        e.event_type = "page_view" and e.job_slug is not null
+    ) as job_page_view_count,
     countif(e.event_type = "apply_click") as apply_click_count
 from {{ ref("stg_posthog__events") }} as e
 where e.session_id is not null

@@ -322,7 +322,7 @@ models:
 
   - name: fct_web_sessions
     description: |
-      One row per captured PostHog session with what happened in it: page views, distinct pages, views of active job pages, and outbound apply clicks, plus the provisional engaged job-seeker flag. Built from `int_web_sessions`, the session aggregation it shares with `dim_web_sessions`, plus active-job page views from PostHog staging events joined to `dim_jobs` for each job's active date range. An engaged job-seeker session viewed a job page while that job was active and then did something on the site: it viewed at least two distinct pages or generated an outbound apply click. A session that only records its landing page is never engaged. That excludes visitors who land behind the cookie consent banner and never answer it, whose capture ends at the landing page, and the duplicate landing-page session that visitors who accepted the banner produced before the site carried their session across the consent reload. It also excludes real visitors who read a single job page without applying. Date ranges attribute the session to its earliest captured event, which is a proposed time basis that must be approved against the activity-window alternative. This is a captured-session fact, not a unique-person count, and no geography, browser, or device is excluded.
+      One row per captured PostHog session with what happened in it: page views, distinct pages, job page views, and outbound apply clicks, plus the provisional engaged job-seeker flag. Selected from `int_web_sessions`, the session aggregation it shares with `dim_web_sessions`. An engaged job-seeker session viewed a job page and then did something on the site: it viewed at least two distinct pages or generated an outbound apply click. A job page counts whether or not the job was still open, so visitors browsing closed jobs count as job seekers. A session that only records its landing page is never engaged. That excludes visitors who land behind the cookie consent banner and never answer it, whose capture ends at the landing page, and the duplicate landing-page session that visitors who accepted the banner produced before the site carried their session across the consent reload. It also excludes real visitors who read a single job page without applying. Date ranges attribute the session to its earliest captured event, which is a proposed time basis that must be approved against the activity-window alternative. This is a captured-session fact, not a unique-person count, and no geography, browser, or device is excluded.
     config:
       group: web_engagement
     columns:
@@ -359,9 +359,9 @@ models:
           - type: not_null
         tests:
           - not_null
-      - name: active_job_page_view_count
+      - name: job_page_view_count
         data_type: int64
-        description: Page views of job pages whose job was active on the date of the view, using the `dim_jobs` added and removed dates.
+        description: Page views of job detail pages, identified by the job slug in the page path, whether or not the job was still open.
         constraints:
           - type: not_null
         tests:
@@ -375,7 +375,7 @@ models:
           - not_null
       - name: is_engaged_job_seeker
         data_type: boolean
-        description: Whether the session viewed an active job page and then viewed at least two distinct pages or generated an outbound apply click.
+        description: Whether the session viewed a job page and then viewed at least two distinct pages or generated an outbound apply click.
         constraints:
           - type: not_null
         tests:
@@ -1408,39 +1408,22 @@ unit_tests:
         - {source_session_id: "no_referrer", session_started_ts: "2026-09-01 00:12:00+00", channel: unknown}
 
   - name: fct_web_sessions_derives_audience_growth_outcomes
-    description: Job activity comes from the job's added and removed dates, and a session is an engaged job seeker only when it viewed an active job page and then viewed a second distinct page or clicked apply. Landing-only sessions and same-page reloads are not engaged.
+    description: A session is an engaged job seeker only when it viewed a job page and then viewed a second distinct page or clicked apply. Landing-only sessions, same-page reloads, and sessions without a job page are not engaged.
     model: fct_web_sessions
     given:
       - input: ref("int_web_sessions")
         rows:
-          - {session_id: "key_applied", source_session_id: "applied", session_started_ts: "2026-09-20 00:00:00+00", page_view_count: 1, distinct_page_count: 1, apply_click_count: 1}
-          - {session_id: "key_browsed", source_session_id: "browsed", session_started_ts: "2026-09-20 01:00:00+00", page_view_count: 2, distinct_page_count: 2, apply_click_count: 0}
-          - {session_id: "key_landing_only", source_session_id: "landing_only", session_started_ts: "2026-09-20 02:00:00+00", page_view_count: 1, distinct_page_count: 1, apply_click_count: 0}
-          - {session_id: "key_reloaded", source_session_id: "reloaded", session_started_ts: "2026-09-20 03:00:00+00", page_view_count: 2, distinct_page_count: 1, apply_click_count: 0}
-          - {session_id: "key_removed_job", source_session_id: "removed_job", session_started_ts: "2026-09-20 04:00:00+00", page_view_count: 2, distinct_page_count: 2, apply_click_count: 0}
-          - {session_id: "key_no_page_views", source_session_id: "no_page_views", session_started_ts: "2026-09-20 05:00:00+00", page_view_count: 0, distinct_page_count: 0, apply_click_count: 0}
-      - input: ref("stg_posthog__events")
-        rows:
-          - {session_id: "applied", event_type: page_view, event_ts: "2026-09-20 00:00:00+00", organization_slug: acme, job_slug: analytics-engineer}
-          - {session_id: "applied", event_type: apply_click, event_ts: "2026-09-20 00:05:00+00", organization_slug: acme, job_slug: analytics-engineer}
-          - {session_id: "browsed", event_type: page_view, event_ts: "2026-09-20 01:00:00+00", organization_slug: null, job_slug: null}
-          - {session_id: "browsed", event_type: page_view, event_ts: "2026-09-20 01:01:00+00", organization_slug: acme, job_slug: analytics-engineer}
-          - {session_id: "browsed", event_type: page_leave, event_ts: "2026-09-20 01:02:00+00", organization_slug: acme, job_slug: analytics-engineer}
-          - {session_id: "landing_only", event_type: page_view, event_ts: "2026-09-20 02:00:00+00", organization_slug: acme, job_slug: analytics-engineer}
-          - {session_id: "reloaded", event_type: page_view, event_ts: "2026-09-20 03:00:00+00", organization_slug: acme, job_slug: analytics-engineer}
-          - {session_id: "reloaded", event_type: page_view, event_ts: "2026-09-20 03:00:05+00", organization_slug: acme, job_slug: analytics-engineer}
-          - {session_id: "removed_job", event_type: page_view, event_ts: "2026-09-20 04:00:00+00", organization_slug: beta, job_slug: analytics-engineer}
-          - {session_id: "removed_job", event_type: page_view, event_ts: "2026-09-20 04:01:00+00", organization_slug: null, job_slug: null}
-          - {session_id: "no_page_views", event_type: page_leave, event_ts: "2026-09-20 05:00:00+00", organization_slug: null, job_slug: null}
-      - input: ref("dim_jobs")
-        rows:
-          - {job_id: "job_acme", organization_slug: acme, job_slug: analytics-engineer, date_added: "2026-09-01", date_removed: null, is_active: true}
-          - {job_id: "job_beta", organization_slug: beta, job_slug: analytics-engineer, date_added: "2026-08-01", date_removed: "2026-09-15", is_active: false}
+          - {session_id: "applied", page_view_count: 1, distinct_page_count: 1, job_page_view_count: 1, apply_click_count: 1}
+          - {session_id: "browsed", page_view_count: 2, distinct_page_count: 2, job_page_view_count: 1, apply_click_count: 0}
+          - {session_id: "landing_only", page_view_count: 1, distinct_page_count: 1, job_page_view_count: 1, apply_click_count: 0}
+          - {session_id: "reloaded", page_view_count: 2, distinct_page_count: 1, job_page_view_count: 2, apply_click_count: 0}
+          - {session_id: "no_job_page", page_view_count: 3, distinct_page_count: 3, job_page_view_count: 0, apply_click_count: 0}
+          - {session_id: "no_page_views", page_view_count: 0, distinct_page_count: 0, job_page_view_count: 0, apply_click_count: 0}
     expect:
       rows:
-        - {session_id: "key_applied", active_job_page_view_count: 1, is_engaged_job_seeker: true}
-        - {session_id: "key_browsed", active_job_page_view_count: 1, is_engaged_job_seeker: true}
-        - {session_id: "key_landing_only", active_job_page_view_count: 1, is_engaged_job_seeker: false}
-        - {session_id: "key_reloaded", active_job_page_view_count: 2, is_engaged_job_seeker: false}
-        - {session_id: "key_removed_job", active_job_page_view_count: 0, is_engaged_job_seeker: false}
-        - {session_id: "key_no_page_views", active_job_page_view_count: 0, is_engaged_job_seeker: false}
+        - {session_id: "applied", is_engaged_job_seeker: true}
+        - {session_id: "browsed", is_engaged_job_seeker: true}
+        - {session_id: "landing_only", is_engaged_job_seeker: false}
+        - {session_id: "reloaded", is_engaged_job_seeker: false}
+        - {session_id: "no_job_page", is_engaged_job_seeker: false}
+        - {session_id: "no_page_views", is_engaged_job_seeker: false}
