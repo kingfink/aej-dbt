@@ -1,0 +1,42 @@
+version: 2
+
+models:
+  - name: int_web_sessions
+    description: |
+      One row per PostHog session, aggregated once from `stg_posthog__events` and shared by `dim_web_sessions` and `fct_web_sessions`. It generates the session key, carries the entry attribution and device context that are constant within a session, and counts page views, distinct pages, and apply clicks. It is a view rather than ephemeral because dbt unit tests on the marts need to mock it, and Fusion cannot fetch the schema of an ephemeral input.
+    columns:
+      - name: session_id
+        description: Web session key generated from source and source_session_id.
+      - name: source_session_id
+        description: PostHog session identifier.
+      - name: source
+        description: Source system, always posthog.
+      - name: visitor_id
+        description: PostHog distinct identifier of the session's device.
+      - name: session_started_ts
+        description: Timestamp of the earliest captured event in the session, in UTC.
+      - name: page_view_count
+        description: Page views captured in the session, including repeated views of the same page.
+      - name: distinct_page_count
+        description: Distinct normalized page paths viewed in the session. A reload of the same page counts once.
+      - name: apply_click_count
+        description: Outbound apply clicks in the session.
+
+unit_tests:
+  - name: int_web_sessions_collapses_events_to_sessions
+    description: Events in a session collapse to one row with its earliest event time and its page view, distinct page, and apply click counts. Events without a session identifier produce no row.
+    model: int_web_sessions
+    given:
+      - input: ref("stg_posthog__events")
+        rows:
+          - {session_id: "browsed", event_type: page_view, event_ts: "2026-09-20 01:01:00+00", page_path: "/jobs/acme/analytics-engineer/", session_referring_domain: "$direct"}
+          - {session_id: "browsed", event_type: page_view, event_ts: "2026-09-20 01:00:00+00", page_path: "/jobs/", session_referring_domain: "$direct"}
+          - {session_id: "browsed", event_type: page_view, event_ts: "2026-09-20 01:02:00+00", page_path: "/jobs/", session_referring_domain: "$direct"}
+          - {session_id: "browsed", event_type: apply_click, event_ts: "2026-09-20 01:03:00+00", page_path: "/jobs/acme/analytics-engineer/", session_referring_domain: "$direct"}
+          - {session_id: "browsed", event_type: page_leave, event_ts: "2026-09-20 01:04:00+00", page_path: "/jobs/acme/analytics-engineer/", session_referring_domain: "$direct"}
+          - {session_id: "page_leave_only", event_type: page_leave, event_ts: "2026-09-20 02:00:00+00", page_path: "/jobs/", session_referring_domain: "www.google.com"}
+          - {session_id: null, event_type: page_view, event_ts: "2026-09-20 03:00:00+00", page_path: "/jobs/", session_referring_domain: "$direct"}
+    expect:
+      rows:
+        - {source_session_id: "browsed", source: posthog, session_started_ts: "2026-09-20 01:00:00+00", session_referring_domain: "$direct", page_view_count: 3, distinct_page_count: 2, apply_click_count: 1}
+        - {source_session_id: "page_leave_only", source: posthog, session_started_ts: "2026-09-20 02:00:00+00", session_referring_domain: "www.google.com", page_view_count: 0, distinct_page_count: 0, apply_click_count: 0}

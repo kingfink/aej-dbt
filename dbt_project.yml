@@ -47,6 +47,9 @@ models:
       email:
         +access: private
         +group: email
+      web_engagement:
+        +access: private
+        +group: web_engagement
     marts:
       +access: public
       +contract:
