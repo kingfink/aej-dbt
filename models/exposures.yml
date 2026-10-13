@@ -128,7 +128,7 @@ exposures:
     label: "Steep module: Web Sessions Fact"
     type: analysis
     maturity: low
-    description: One row per captured PostHog session with provisional active-job engagement and apply-click outcome flags for the audience-growth measurement contract.
+    description: One row per captured PostHog session with provisional engaged job-seeker and apply-click outcome flags for the audience-growth measurement contract.
     depends_on:
       - ref("dim_web_sessions")
       - ref("fct_web_sessions")

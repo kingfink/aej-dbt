@@ -5,7 +5,10 @@ with
             logical_or(
                 e.event_type = "page_view" and active_job.job_daily_id is not null
             ) as has_active_job_view,
-            logical_or(e.event_type = "apply_click") as has_apply_click
+            logical_or(e.event_type = "apply_click") as has_apply_click,
+            count(
+                distinct if(e.event_type = "page_view", e.page_path, null)
+            ) as page_path_count
         from {{ ref("fct_web_events") }} as e
         left join
             {{ ref("fct_jobs_daily") }} as active_job
@@ -19,6 +22,9 @@ select
     s.session_id,
     s.session_started_ts,
     coalesce(o.has_active_job_view, false) as has_active_job_view,
-    coalesce(o.has_apply_click, false) as has_apply_click
+    coalesce(o.has_apply_click, false) as has_apply_click,
+    coalesce(
+        o.has_active_job_view and (o.page_path_count >= 2 or o.has_apply_click), false
+    ) as is_engaged_job_seeker
 from {{ ref("dim_web_sessions") }} as s
 left join session_outcomes as o on s.session_id = o.session_id
