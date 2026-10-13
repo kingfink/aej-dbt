@@ -46,6 +46,9 @@ select
     nullif(
         json_value(properties, '$."$session_entry_utm_campaign"'), ""
     ) as session_utm_campaign,
+    nullif(json_value(properties, '$."$browser"'), "") as browser,
+    nullif(json_value(properties, '$."$device_type"'), "") as device_type,
+    nullif(json_value(properties, '$."$geoip_country_code"'), "") as country_code,
     bq_ingested_timestamp as loaded_ts
 from {{ source("posthog", "events") }}
 where

@@ -89,6 +89,12 @@ models:
         description: Lowercased campaign medium on the session entry URL. Repeated on every event in the session.
       - name: session_utm_campaign
         description: Campaign name on the session entry URL. Repeated on every event in the session.
+      - name: browser
+        description: Browser family detected by PostHog, retained for traffic-quality sensitivity analysis.
+      - name: device_type
+        description: Device type detected by PostHog, retained for traffic-quality sensitivity analysis.
+      - name: country_code
+        description: Country code detected by PostHog, retained for traffic-quality sensitivity analysis rather than hard-coded exclusion.
       - name: loaded_ts
         description: Timestamp when the batch export loaded the event into BigQuery.
         tests:

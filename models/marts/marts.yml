@@ -274,6 +274,15 @@ models:
       - name: session_utm_campaign
         data_type: string
         description: Campaign name on the session entry URL.
+      - name: browser
+        data_type: string
+        description: Browser family detected by PostHog for traffic-quality sensitivity analysis.
+      - name: device_type
+        data_type: string
+        description: Device type detected by PostHog for traffic-quality sensitivity analysis.
+      - name: country_code
+        data_type: string
+        description: Country code detected by PostHog for sensitivity analysis. This field does not encode any geography-based exclusion.
       - name: channel
         data_type: string
         description: |
@@ -310,6 +319,67 @@ models:
                   - referral
                   - sms
                   - unknown
+
+  - name: fct_web_sessions
+    description: |
+      One row per captured PostHog session with what happened in it: page views, distinct pages, job page views, and outbound apply clicks, plus the provisional engaged job-seeker flag. Selected from `int_web_sessions`, the session aggregation it shares with `dim_web_sessions`. An engaged job-seeker session viewed a job page and then did something on the site: it viewed at least two distinct pages or generated an outbound apply click. A job page counts whether or not the job was still open, so visitors browsing closed jobs count as job seekers. A session that only records its landing page is never engaged. That excludes visitors who land behind the cookie consent banner and never answer it, whose capture ends at the landing page, and the duplicate landing-page session that visitors who accepted the banner produced before the site carried their session across the consent reload. It also excludes real visitors who read a single job page without applying. Date ranges attribute the session to its earliest captured event, which is a proposed time basis that must be approved against the activity-window alternative. This is a captured-session fact, not a unique-person count, and no geography, browser, or device is excluded.
+    config:
+      group: web_engagement
+    columns:
+      - name: session_id
+        data_type: string
+        description: Web session dimension key.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+          - unique
+          - relationships:
+              arguments:
+                to: ref("dim_web_sessions")
+                field: session_id
+      - name: session_started_ts
+        data_type: timestamp
+        description: Timestamp of the earliest captured event in the session, in UTC.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+      - name: page_view_count
+        data_type: int64
+        description: Page views captured in the session, including repeated views of the same page.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+      - name: distinct_page_count
+        data_type: int64
+        description: Distinct normalized page paths viewed in the session. A reload of the same page counts once.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+      - name: job_page_view_count
+        data_type: int64
+        description: Page views of job detail pages, identified by the job slug in the page path, whether or not the job was still open.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+      - name: apply_click_count
+        data_type: int64
+        description: Outbound apply clicks in the session.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
+      - name: is_engaged_job_seeker
+        data_type: boolean
+        description: Whether the session viewed a job page and then viewed at least two distinct pages or generated an outbound apply click.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
 
   - name: fct_form_submissions
     description: One row per legacy Webflow or current Netlify form submission, linked to known subscribers and site-content dimensions when matching records exist.
@@ -1293,26 +1363,24 @@ unit_tests:
         - {page_path: "/about/", page_type: other}
 
   - name: dim_web_sessions_derives_channel_precedence
-    description: Events in a session collapse to one row. Paid mediums resolve by source and fall back to paid_unknown; a UTM source beats a `$direct` referrer; an exact host definition beats its registrable domain, so Gemini and Gmail do not read as Google search; UTM medium organic is organic search; the site's own domain is internal; a referrer with no definition is referral and no referrer at all is unknown; and an event with no session identifier produces no session row.
+    description: Paid mediums resolve by source and fall back to paid_unknown; a UTM source beats a `$direct` referrer; an exact host definition beats its registrable domain, so Gemini and Gmail do not read as Google search; UTM medium organic is organic search; the site's own domain is internal; a referrer with no definition is referral and no referrer at all is unknown.
     model: dim_web_sessions
     given:
-      - input: ref("stg_posthog__events")
+      - input: ref("int_web_sessions")
         rows:
-          - {session_id: "newsletter", event_ts: "2026-09-01 00:00:00+00", session_referring_domain: "$direct", session_utm_source: "newsletter", session_utm_medium: "email", session_utm_campaign: "weekly_jobs"}
-          - {session_id: "newsletter", event_ts: "2026-09-01 00:30:00+00", session_referring_domain: "$direct", session_utm_source: "newsletter", session_utm_medium: "email", session_utm_campaign: "weekly_jobs"}
-          - {session_id: "reddit_ad", event_ts: "2026-09-01 00:01:00+00", session_referring_domain: "www.reddit.com", session_utm_source: "reddit", session_utm_medium: "paid", session_utm_campaign: "jobs_board"}
-          - {session_id: "unknown_cpc", event_ts: "2026-09-01 00:02:00+00", session_referring_domain: "$direct", session_utm_source: "partner", session_utm_medium: "cpc", session_utm_campaign: null}
-          - {session_id: "google_jobs", event_ts: "2026-09-01 00:03:00+00", session_referring_domain: "$direct", session_utm_source: "google_jobs_apply", session_utm_medium: "organic", session_utm_campaign: null}
-          - {session_id: "chatgpt_link", event_ts: "2026-09-01 00:04:00+00", session_referring_domain: "$direct", session_utm_source: "chatgpt.com", session_utm_medium: null, session_utm_campaign: null}
-          - {session_id: "gemini", event_ts: "2026-09-01 00:05:00+00", session_referring_domain: "gemini.google.com", session_utm_source: null, session_utm_medium: null, session_utm_campaign: null}
-          - {session_id: "webmail", event_ts: "2026-09-01 00:06:00+00", session_referring_domain: "mail.google.com", session_utm_source: null, session_utm_medium: null, session_utm_campaign: null}
-          - {session_id: "search", event_ts: "2026-09-01 00:07:00+00", session_referring_domain: "www.google.com", session_utm_source: null, session_utm_medium: null, session_utm_campaign: null}
-          - {session_id: "social", event_ts: "2026-09-01 00:08:00+00", session_referring_domain: "t.co", session_utm_source: null, session_utm_medium: null, session_utm_campaign: null}
-          - {session_id: "internal", event_ts: "2026-09-01 00:09:00+00", session_referring_domain: "www.analyticsengineeringjobs.com", session_utm_source: null, session_utm_medium: null, session_utm_campaign: null}
-          - {session_id: "direct", event_ts: "2026-09-01 00:10:00+00", session_referring_domain: "$direct", session_utm_source: null, session_utm_medium: null, session_utm_campaign: null}
-          - {session_id: "referral", event_ts: "2026-09-01 00:11:00+00", session_referring_domain: "example.com", session_utm_source: null, session_utm_medium: null, session_utm_campaign: null}
-          - {session_id: "no_referrer", event_ts: "2026-09-01 00:12:00+00", session_referring_domain: null, session_utm_source: null, session_utm_medium: null, session_utm_campaign: null}
-          - {session_id: null, event_ts: "2026-09-01 00:13:00+00", session_referring_domain: "$direct", session_utm_source: null, session_utm_medium: null, session_utm_campaign: null}
+          - {source_session_id: "newsletter", session_started_ts: "2026-09-01 00:00:00+00", session_referring_domain: "$direct", session_utm_source: "newsletter", session_utm_medium: "email", session_utm_campaign: "weekly_jobs"}
+          - {source_session_id: "reddit_ad", session_started_ts: "2026-09-01 00:01:00+00", session_referring_domain: "www.reddit.com", session_utm_source: "reddit", session_utm_medium: "paid", session_utm_campaign: "jobs_board"}
+          - {source_session_id: "unknown_cpc", session_started_ts: "2026-09-01 00:02:00+00", session_referring_domain: "$direct", session_utm_source: "partner", session_utm_medium: "cpc", session_utm_campaign: null}
+          - {source_session_id: "google_jobs", session_started_ts: "2026-09-01 00:03:00+00", session_referring_domain: "$direct", session_utm_source: "google_jobs_apply", session_utm_medium: "organic", session_utm_campaign: null}
+          - {source_session_id: "chatgpt_link", session_started_ts: "2026-09-01 00:04:00+00", session_referring_domain: "$direct", session_utm_source: "chatgpt.com", session_utm_medium: null, session_utm_campaign: null}
+          - {source_session_id: "gemini", session_started_ts: "2026-09-01 00:05:00+00", session_referring_domain: "gemini.google.com", session_utm_source: null, session_utm_medium: null, session_utm_campaign: null}
+          - {source_session_id: "webmail", session_started_ts: "2026-09-01 00:06:00+00", session_referring_domain: "mail.google.com", session_utm_source: null, session_utm_medium: null, session_utm_campaign: null}
+          - {source_session_id: "search", session_started_ts: "2026-09-01 00:07:00+00", session_referring_domain: "www.google.com", session_utm_source: null, session_utm_medium: null, session_utm_campaign: null}
+          - {source_session_id: "social", session_started_ts: "2026-09-01 00:08:00+00", session_referring_domain: "t.co", session_utm_source: null, session_utm_medium: null, session_utm_campaign: null}
+          - {source_session_id: "internal", session_started_ts: "2026-09-01 00:09:00+00", session_referring_domain: "www.analyticsengineeringjobs.com", session_utm_source: null, session_utm_medium: null, session_utm_campaign: null}
+          - {source_session_id: "direct", session_started_ts: "2026-09-01 00:10:00+00", session_referring_domain: "$direct", session_utm_source: null, session_utm_medium: null, session_utm_campaign: null}
+          - {source_session_id: "referral", session_started_ts: "2026-09-01 00:11:00+00", session_referring_domain: "example.com", session_utm_source: null, session_utm_medium: null, session_utm_campaign: null}
+          - {source_session_id: "no_referrer", session_started_ts: "2026-09-01 00:12:00+00", session_referring_domain: null, session_utm_source: null, session_utm_medium: null, session_utm_campaign: null}
       - input: ref("channel_definitions")
         rows:
           - {domain: "chatgpt.com", kind: "source", type_if_paid: null, type_if_organic: "AI"}
@@ -1338,3 +1406,24 @@ unit_tests:
         - {source_session_id: "direct", session_started_ts: "2026-09-01 00:10:00+00", channel: direct}
         - {source_session_id: "referral", session_started_ts: "2026-09-01 00:11:00+00", channel: referral}
         - {source_session_id: "no_referrer", session_started_ts: "2026-09-01 00:12:00+00", channel: unknown}
+
+  - name: fct_web_sessions_derives_audience_growth_outcomes
+    description: A session is an engaged job seeker only when it viewed a job page and then viewed a second distinct page or clicked apply. Landing-only sessions, same-page reloads, and sessions without a job page are not engaged.
+    model: fct_web_sessions
+    given:
+      - input: ref("int_web_sessions")
+        rows:
+          - {session_id: "applied", page_view_count: 1, distinct_page_count: 1, job_page_view_count: 1, apply_click_count: 1}
+          - {session_id: "browsed", page_view_count: 2, distinct_page_count: 2, job_page_view_count: 1, apply_click_count: 0}
+          - {session_id: "landing_only", page_view_count: 1, distinct_page_count: 1, job_page_view_count: 1, apply_click_count: 0}
+          - {session_id: "reloaded", page_view_count: 2, distinct_page_count: 1, job_page_view_count: 2, apply_click_count: 0}
+          - {session_id: "no_job_page", page_view_count: 3, distinct_page_count: 3, job_page_view_count: 0, apply_click_count: 0}
+          - {session_id: "no_page_views", page_view_count: 0, distinct_page_count: 0, job_page_view_count: 0, apply_click_count: 0}
+    expect:
+      rows:
+        - {session_id: "applied", is_engaged_job_seeker: true}
+        - {session_id: "browsed", is_engaged_job_seeker: true}
+        - {session_id: "landing_only", is_engaged_job_seeker: false}
+        - {session_id: "reloaded", is_engaged_job_seeker: false}
+        - {session_id: "no_job_page", is_engaged_job_seeker: false}
+        - {session_id: "no_page_views", is_engaged_job_seeker: false}
