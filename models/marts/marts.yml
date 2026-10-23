@@ -459,6 +459,13 @@ models:
         tests:
           - not_null
           - is_normalized_email_address
+      - name: is_first_form_submission
+        data_type: boolean
+        description: Whether this is the earliest submission for the normalized email address across all form types, source platforms, and available history, ordered by submitted_ts then form_submission_id. Missing or empty email addresses are false. This is a first-time submitter proxy, not confirmed subscriber acquisition; historical backfills can move the first submission.
+        constraints:
+          - type: not_null
+        tests:
+          - not_null
       - name: session_id
         data_type: string
         description: |
@@ -1326,6 +1333,41 @@ models:
           - not_null
 
 unit_tests:
+  - name: fct_form_submissions_flags_first_email_across_forms_and_sources
+    description: Full-history ranking credits one form per email, including unmatched subscribers, breaks timestamp ties by submission ID, and excludes missing or empty emails.
+    model: fct_form_submissions
+    given:
+      - input: ref("stg_webflow__form_submissions")
+        rows:
+          - {form_submission_id: legacy, email_address: repeat@example.com, form_name: newsletter, submitted_ts: "2025-01-01 00:00:00"}
+      - input: ref("stg_netlify__form_submissions")
+        rows:
+          - {form_submission_id: returning, email_address: repeat@example.com, form_name: job-apply-capture, submitted_ts: "2026-08-03 00:00:00"}
+          - {form_submission_id: first, email_address: new@example.com, form_name: resume-review, submitted_ts: "2026-08-04 00:00:00"}
+          - {form_submission_id: later, email_address: new@example.com, form_name: newsletter, submitted_ts: "2026-08-11 00:00:00"}
+          - {form_submission_id: tie-b, email_address: tie@example.com, form_name: newsletter, submitted_ts: "2026-08-05 00:00:00"}
+          - {form_submission_id: tie-a, email_address: tie@example.com, form_name: job-apply-capture, submitted_ts: "2026-08-05 00:00:00"}
+          - {form_submission_id: missing, email_address: null, form_name: newsletter, submitted_ts: "2026-08-06 00:00:00"}
+          - {form_submission_id: empty, email_address: "", form_name: newsletter, submitted_ts: "2026-08-06 00:00:00"}
+      - input: ref("dim_email_subscribers")
+        rows: []
+      - input: ref("dim_jobs")
+        rows: []
+      - input: ref("dim_organizations")
+        rows: []
+      - input: ref("dim_web_sessions")
+        rows: []
+    expect:
+      rows:
+        - {form_submission_id: legacy, is_first_form_submission: true}
+        - {form_submission_id: returning, is_first_form_submission: false}
+        - {form_submission_id: first, is_first_form_submission: true}
+        - {form_submission_id: later, is_first_form_submission: false}
+        - {form_submission_id: tie-b, is_first_form_submission: false}
+        - {form_submission_id: tie-a, is_first_form_submission: true}
+        - {form_submission_id: missing, is_first_form_submission: false}
+        - {form_submission_id: empty, is_first_form_submission: false}
+
   - name: dim_pages_classifies_page_types
     description: Page type comes from the path prefix, legacy flat job paths are still job pages, a path seen only in PostHog is still a page, and paths repeated within or across sources collapse to one page.
     model: dim_pages
