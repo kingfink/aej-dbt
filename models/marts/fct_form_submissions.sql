@@ -40,6 +40,11 @@ select
     j.job_id,
     coalesce(j.organization_id, o.organization_id) as organization_id,
     fs.email_address,
+    nullif(fs.email_address, '') is not null
+    and row_number() over (
+        partition by fs.email_address order by fs.submitted_ts, fs.form_submission_id
+    )
+    = 1 as is_first_form_submission,
     ws.session_id,
     fs.posthog_distinct_id,
     fs.posthog_session_id,
