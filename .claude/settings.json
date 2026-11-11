@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(./bin/mdbt *)"
+    ],
+    "ask": [
+      "Bash(./bin/mdbt *--target prd*)",
+      "Bash(./bin/mdbt *--target=prd*)"
+    ]
+  }
+}
