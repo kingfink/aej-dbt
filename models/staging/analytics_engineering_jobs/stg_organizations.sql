@@ -8,6 +8,8 @@ select
     as description_short,
     {{ get_frontmatter_value("frontmatter", "$.website", "string") }}
     as organization_url,
+    {{ get_frontmatter_value("frontmatter", "$.linkedin", "string") }}
+    as linkedin_url,
     coalesce(
         {{ get_frontmatter_value("frontmatter", "$.headcount", "string") }},
         {{ get_frontmatter_value("frontmatter", "$.headcount_inferred", "string") }}

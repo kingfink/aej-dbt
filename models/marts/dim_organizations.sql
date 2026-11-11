@@ -7,6 +7,7 @@ select
     description,
     description_short,
     organization_url,
+    linkedin_url,
     headcount,
     location
 from {{ ref("stg_organizations") }}
