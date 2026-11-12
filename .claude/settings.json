@@ -1,11 +1,11 @@
 {
-  "permissions": {
-    "allow": [
-      "Bash(./bin/mdbt *)"
-    ],
-    "ask": [
-      "Bash(./bin/mdbt *--target prd*)",
-      "Bash(./bin/mdbt *--target=prd*)"
-    ]
+  "sandbox": {
+    "network": {
+      "allowedDomains": ["pypi.org", "files.pythonhosted.org"]
+    },
+    "filesystem": {
+      "allowRead": ["~/.cache/uv", "~/.local/share/uv", "~/.cache/sqlfmt", "~/Library/Caches/sqlfmt"],
+      "allowWrite": ["~/.cache/uv", "~/.cache/sqlfmt", "~/Library/Caches/sqlfmt"]
+    }
   }
 }
