@@ -1,0 +1,11 @@
+{
+  "sandbox": {
+    "network": {
+      "allowedDomains": ["pypi.org", "files.pythonhosted.org", "api.modal.com", "*.modal.com"]
+    },
+    "filesystem": {
+      "allowRead": ["~/.cache/uv", "~/.local/share/uv", "~/.cache/sqlfmt", "~/Library/Caches/sqlfmt", "~/.modal.toml"],
+      "allowWrite": ["~/.cache/uv", "~/.cache/sqlfmt", "~/Library/Caches/sqlfmt"]
+    }
+  }
+}
