@@ -1,4 +1,7 @@
 {
+  "env": {
+    "AEJ_DBT_USER": "workshop"
+  },
   "sandbox": {
     "network": {
       "allowedDomains": ["pypi.org", "files.pythonhosted.org", "api.modal.com", "*.modal.com"]
