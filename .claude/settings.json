@@ -1,6 +1,6 @@
 {
   "env": {
-    "AEJ_DBT_USER": "workshop"
+    "AEJ_DBT_USER": "tf"
   },
   "sandbox": {
     "network": {
