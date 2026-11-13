@@ -204,6 +204,9 @@ models:
       - name: organization_url
         data_type: string
         description: Published organization website URL.
+      - name: linkedin_url
+        data_type: string
+        description: Published LinkedIn company page URL. Null when the organization has not set one.
       - name: headcount
         data_type: string
         description: Published or inferred organization headcount range.
