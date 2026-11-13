@@ -939,6 +939,8 @@ models:
           - include: all
             exclude:
               - n_messages
+              - html_body
+              - text_body
       - v: 2
         columns:
           - include: all
@@ -1010,6 +1012,12 @@ models:
                   - true
                   - false
                 quote: false
+      - name: html_body
+        data_type: string
+        description: Resend broadcast HTML body. Null for campaigns not sent as a Resend broadcast, such as transactional and test sends. Version 2 onward.
+      - name: text_body
+        data_type: string
+        description: Resend broadcast plain-text body. Null for campaigns not sent as a Resend broadcast, such as transactional and test sends. Version 2 onward.
 
   - name: dim_email_messages
     description: One row per provider email message across SendGrid and Resend.

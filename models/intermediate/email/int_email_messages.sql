@@ -5,6 +5,7 @@ with
             source,
             source_email_id,
             any_value(subject) as subject,
+            any_value(broadcast_id) as broadcast_id,
             any_value(link_utm_campaign) as campaign_name,
             min(if(event_type = "sent", event_ts, null)) as first_sent_ts,
             min(event_ts) as first_event_ts
@@ -22,6 +23,7 @@ select
     source,
     source_email_id,
     subject,
+    broadcast_id,
     campaign_name,
     first_sent_ts,
     first_event_ts

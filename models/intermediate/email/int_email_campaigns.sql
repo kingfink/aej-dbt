@@ -3,9 +3,10 @@ select
     m.source,
     any_value(m.campaign_name) as campaign_name,
     m.subject,
+    any_value(m.broadcast_id) as broadcast_id,
     date(coalesce(m.first_sent_ts, m.first_event_ts)) as campaign_date,
     min(m.first_sent_ts) as first_sent_ts,
     count(*) as message_count,
     coalesce(starts_with(m.subject, "[TEST]"), false) as is_test
 from {{ ref("int_email_messages") }} as m
-group by 1, 2, 4, 5
+group by 1, 2, 4, 6
