@@ -212,7 +212,7 @@ uv run modal deploy app.py
 Inspect recent production syncs with [Workshop](https://github.com/kingfink/workshop), configured in [.workshop/inspect.toml](.workshop/inspect.toml):
 
 ```bash
-workshop.py inspect kingfink/aej-dbt --since 24h
+workshop.py inspect kingfink/aej-dbt
 ```
 
 ### Continuous deployment
