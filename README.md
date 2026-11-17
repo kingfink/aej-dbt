@@ -207,6 +207,14 @@ uv run modal deploy app.py
 
 `modal run app.py` remains useful for manual runs, but it creates an ephemeral app and does not activate schedules.
 
+### Inspection
+
+Inspect recent production syncs with [Workshop](https://github.com/kingfink/workshop), configured in [.workshop/inspect.toml](.workshop/inspect.toml):
+
+```bash
+workshop.py inspect kingfink/aej-dbt
+```
+
 ### Continuous deployment
 
 Pull requests run `Ruff`, `Unit tests`, `dbt parse`, and `dbt build` checks. Pushes to `master` run Ruff, unit tests, and dbt parse before the `Deploy` workflow updates the Modal app, then publishes Parquet from the deployed app as a smoke test.
