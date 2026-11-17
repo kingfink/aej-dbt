@@ -207,6 +207,18 @@ uv run modal deploy app.py
 
 `modal run app.py` remains useful for manual runs, but it creates an ephemeral app and does not activate schedules.
 
+### Inspection
+
+[Workshop](https://github.com/kingfink/workshop) can inspect the scheduled production function's reported calls and assess failures without running or changing the pipeline. `.workshop/inspect.toml` selects the `analytics-engineering-jobs` Modal profile, the `main` environment, and `aej-dbt/scheduled_production_sync`, which covers both the dbt build and Parquet publication.
+
+With Workshop's `inspect` command and an authenticated Modal CLI supporting call history and logs (tested with Modal 1.6.4), run:
+
+```bash
+workshop.py inspect kingfink/aej-dbt --since 24h
+```
+
+The report states whether action remains, cites evidence, and gives the next step. Workshop reads this configuration from the repository's default branch. It checks reported calls in the selected window; missed schedules and data freshness remain outside its coverage.
+
 ### Continuous deployment
 
 Pull requests run `Ruff`, `Unit tests`, `dbt parse`, and `dbt build` checks. Pushes to `master` run Ruff, unit tests, and dbt parse before the `Deploy` workflow updates the Modal app, then publishes Parquet from the deployed app as a smoke test.
