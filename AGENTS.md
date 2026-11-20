@@ -169,6 +169,8 @@
 - Add `accepted_values` tests for every categorical column so supported values are discoverable in model YAML without querying the warehouse.
 - Avoid tests that only restate static configuration; tests should validate behavior or meaningful invariants.
 - Format changed SQL, parse the project, and build affected models and their descendants.
+- Run dbt against BigQuery with `./bin/mdbt`, such as `./bin/mdbt build --select <model>+`. `bin` is on `PATH` only through direnv, so call it by path.
+- Parse with `bash scripts/dbt-parse`. After changing `packages.yml`, run `bash scripts/dbt-deps` and commit the updated `package-lock.yml`; the `dbt parse` check fails on a stale lock.
 - Run a full build for broad naming, staging, or contract changes.
 
 ## Markdown

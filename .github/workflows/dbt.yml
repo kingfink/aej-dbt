@@ -50,7 +50,35 @@ jobs:
       - name: Build modified resources
         run: |
           if uv run modal volume get aej-dbt-prod-state manifest.json - > /dev/null; then
-            ./bin/mdbt build --select state:modified+,package:this --defer --state /prod-state
+            ./bin/mdbt build --select state:modified+,package:this package:elementary --defer --state /prod-state
           else
-            ./bin/mdbt build --select package:this
+            ./bin/mdbt build --select package:this package:elementary
           fi
+      # Non-blocking production diff audit, scoped to the mart models this run
+      # actually built: the build's own selector intersected with the mart
+      # path, so a pull request that touches nothing under `models/marts`
+      # audits nothing. `--output name` renders a versioned model as
+      # `dim_email_campaigns.v2`, which is not a relation, so unique IDs are
+      # listed instead and the operation resolves each one through the graph.
+      # `mdbt` dispatches through Modal, whose own progress lines share stdout
+      # with dbt's, hence the line-wise `fromjson?` filter.
+      - name: Audit CI models against production
+        continue-on-error: true
+        run: |
+          if uv run modal volume get aej-dbt-prod-state manifest.json - > /dev/null; then
+            ./bin/mdbt ls --select state:modified+,package:this,path:models/marts \
+              --resource-type model --output json --output-keys unique_id \
+              --defer --state /prod-state > audit-models.log
+          else
+            ./bin/mdbt ls --select package:this,path:models/marts \
+              --resource-type model --output json --output-keys unique_id \
+              > audit-models.log
+          fi
+          unique_ids="$(jq -rR 'fromjson? | objects | .unique_id // empty' audit-models.log)"
+          if [ -z "$unique_ids" ]; then
+            echo "No mart models in this run's selection; nothing to audit."
+            exit 0
+          fi
+          args="$(printf '%s\n' "$unique_ids" \
+            | jq -Rsc 'split("\n") | map(select(. != "")) | {model_unique_ids: .}')"
+          ./bin/mdbt run-operation audit_compare_to_prod --args "$args"

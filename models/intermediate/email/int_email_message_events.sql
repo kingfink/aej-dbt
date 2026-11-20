@@ -8,6 +8,7 @@ with
             message_id as source_email_id,
             email_address,
             cast(null as string) as subject,
+            cast(null as string) as broadcast_id,
             if(event_type = "clicked", link_url, null) as source_link_url,
             ip_address,
             user_agent,
@@ -28,6 +29,7 @@ with
             message_id as source_email_id,
             email_address,
             subject,
+            broadcast_id,
             if(event_type = "clicked", click_link, null) as source_link_url,
             click_ip_address as ip_address,
             click_user_agent as user_agent,
@@ -44,6 +46,7 @@ with
             b.message_id as source_email_id,
             b.email_address,
             b.subject,
+            cast(null as string) as broadcast_id,
             cast(null as string) as source_link_url,
             cast(null as string) as ip_address,
             cast(null as string) as user_agent,
@@ -69,6 +72,7 @@ select
     source_email_id,
     email_address,
     subject,
+    broadcast_id,
     regexp_replace(source_link_url, r"[?#].*$", "") as link_url,
     case
         when source_link_url is null
