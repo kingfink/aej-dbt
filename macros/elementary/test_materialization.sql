@@ -13,9 +13,7 @@
     {% set error_if = config.get("error_if") %}
     {% set limit = config.get("limit") %}
 
-    {% if not(should_store_failures()) %}
-
-        {% set compiled_code = sql %}
+    {% if not(should_store_failures()) %} {% set compiled_code = sql %}
 
     {% else %}
 
