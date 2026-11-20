@@ -7,11 +7,15 @@ dependencies = []
 
 [dependency-groups]
 dev = [
+    "elementary-data[bigquery]==0.26.1",
     "modal[api-proxy-support]>=1.5.1,<2",
     "pre-commit>=4,<5",
     "ruff>=0.12,<1",
     "shandy-sqlfmt[jinjafmt]>=0.28,<1",
 ]
+
+[tool.sqlfmt]
+exclude = [".venv/**", "dbt_packages/**", "target/**"]
 
 [tool.ruff]
 line-length = 88

@@ -12,6 +12,7 @@ select
     e.email_id as message_id,
     {{ normalize_email_address("r") }} as email_address,
     nullif(e.subject, "") as subject,
+    nullif(e.broadcast_id, "") as broadcast_id,
     nullif(e.click_ip_address, "") as click_ip_address,
     nullif(e.click_link, "") as click_link,
     e.click_timestamp as click_ts,

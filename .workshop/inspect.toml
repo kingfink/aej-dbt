@@ -1,0 +1,4 @@
+[modal]
+profile = "analytics-engineering-jobs"
+environment = "main"
+functions = ["aej-dbt/scheduled_production_sync"]
