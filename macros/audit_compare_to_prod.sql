@@ -30,17 +30,43 @@
     {% set n_current_rows = row_counts.columns[0].values()[0] %}
     {% set n_prod_rows = row_counts.columns[1].values()[0] %}
 
-    {% set current_column_set = adapter.get_columns_in_relation(current_relation)
-        | map(attribute="name") | list %}
-    {% set prod_column_set = adapter.get_columns_in_relation(prod_relation)
-        | map(attribute="name") | list %}
-    {% set current_only = current_column_set
-        | reject("in", prod_column_set) | list %}
-    {% set prod_only = prod_column_set
-        | reject("in", current_column_set) | list %}
+    {% set current_column_set = (
+        adapter.get_columns_in_relation(current_relation)
+        | map(attribute="name")
+        | list
+    ) %}
+    {% set prod_column_set = (
+        adapter.get_columns_in_relation(prod_relation)
+        | map(attribute="name")
+        | list
+    ) %}
+    {% set current_only = current_column_set | reject("in", prod_column_set) | list %}
+    {% set prod_only = prod_column_set | reject("in", current_column_set) | list %}
 
-    {{ log("audit: " ~ current_relation.identifier ~ " rows current=" ~ n_current_rows ~ " prod=" ~ n_prod_rows ~ " diff=" ~ (n_current_rows - n_prod_rows), info=true) }}
+    {{
+        log(
+            "audit: "
+            ~ current_relation.identifier
+            ~ " rows current="
+            ~ n_current_rows
+            ~ " prod="
+            ~ n_prod_rows
+            ~ " diff="
+            ~ (n_current_rows - n_prod_rows),
+            info=true,
+        )
+    }}
     {% if current_only or prod_only %}
-        {{ log("audit: " ~ current_relation.identifier ~ " schema diff, current_only=" ~ current_only ~ " prod_only=" ~ prod_only, info=true) }}
+        {{
+            log(
+                "audit: "
+                ~ current_relation.identifier
+                ~ " schema diff, current_only="
+                ~ current_only
+                ~ " prod_only="
+                ~ prod_only,
+                info=true,
+            )
+        }}
     {% endif %}
 {% endmacro %}
