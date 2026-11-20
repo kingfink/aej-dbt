@@ -3,7 +3,9 @@ packages:
   #   version: [">=6.2.0", "<6.3.0"]
 
   # fixes typo (desctiption) in source repository while waiting for the PR (https://github.com/Velir/dbt-ga4/pull/398) to be merged
-  - git: "https://github.com/kingfink/dbt-ga4.git"
+  # A tarball rather than a git package, so `dbt deps` needs no git checkout: agents' sandboxes cannot write `.git/config`.
+  - tarball: "https://codeload.github.com/kingfink/dbt-ga4/tar.gz/a0c70869df3070a189208a1d585f63dd4bd380e7"
+    name: ga4
 
   - package: elementary-data/elementary
     version: 0.26.1

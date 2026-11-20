@@ -8,10 +8,14 @@
 {% materialization test, default %}
 
     {% set relations = [] %}
+    {% set fail_calc = config.get("fail_calc") %}
+    {% set warn_if = config.get("warn_if") %}
+    {% set error_if = config.get("error_if") %}
+    {% set limit = config.get("limit") %}
 
     {% if not(should_store_failures()) %}
 
-        {% set compiled_code = get_rendered_statement(sql) %}
+        {% set compiled_code = sql %}
 
     {% else %}
 
