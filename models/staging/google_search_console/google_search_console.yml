@@ -59,6 +59,7 @@ models:
                   - image
                   - news
                   - web
+                  - web_multimodal
       - name: device
         description: Device class the search came from, lowercased.
         tests:
@@ -121,6 +122,7 @@ models:
                   - image
                   - news
                   - web
+                  - web_multimodal
       - name: device
         description: Device class the search came from, lowercased.
         tests:

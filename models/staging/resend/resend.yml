@@ -14,6 +14,12 @@ sources:
           freshness:
             warn_after: {count: 48, period: hour}
             error_after: {count: 72, period: hour}
+  - name: resend_broadcasts
+    database: analytics-engineering-jobs
+    schema: resend
+    loader: dlt
+    tables:
+      - name: broadcasts
 
 models:
   - name: stg_resend__contacts
@@ -93,6 +99,8 @@ models:
       - name: event_created_ts
         tests:
           - not_null
+      - name: broadcast_id
+        description: Resend broadcast identifier, populated when the message was sent as part of a broadcast rather than a transactional or test send.
 
   - name: stg_resend__emails_backfill
     description: Resend email backfill flattened to one row per message recipient.
@@ -111,3 +119,21 @@ models:
       - name: email_created_ts
         tests:
           - not_null
+
+  - name: stg_resend__broadcasts
+    description: Resend broadcast content and send status, one row per broadcast.
+    columns:
+      - name: broadcast_id
+        tests:
+          - not_null
+          - unique
+      - name: subject
+        description: Broadcast subject line.
+      - name: html
+        description: Broadcast HTML body.
+      - name: text
+        description: Broadcast plain-text body.
+      - name: status
+        description: Resend broadcast lifecycle status, such as draft or sent.
+      - name: broadcast_sent_ts
+        description: Timestamp when Resend sent the broadcast. Null for broadcasts that were never sent.
