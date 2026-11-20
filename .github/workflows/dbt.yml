@@ -50,7 +50,7 @@ jobs:
       - name: Build modified resources
         run: |
           if uv run modal volume get aej-dbt-prod-state manifest.json - > /dev/null; then
-            ./bin/mdbt build --select state:modified+,package:this --defer --state /prod-state
+            ./bin/mdbt build --select state:modified+,package:this package:elementary --defer --state /prod-state
           else
-            ./bin/mdbt build --select package:this
+            ./bin/mdbt build --select package:this package:elementary
           fi

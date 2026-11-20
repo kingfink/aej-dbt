@@ -230,10 +230,10 @@ CI does not `dbt clone` unmodified incremental descendants from production, so t
 Model commands should go through `mdbt`, which keeps Modal dispatch, target selection, and package-lock handling in one place. Local shells can use `mdbt` because `.envrc` adds `bin` to `PATH`; GitHub Actions uses the explicit path:
 
 ```bash
-AEJ_DBT_TARGET=ci AEJ_DBT_PR_NUMBER=123 ./bin/mdbt build --select state:modified+,package:this --defer --state /prod-state
+AEJ_DBT_TARGET=ci AEJ_DBT_PR_NUMBER=123 ./bin/mdbt build --select state:modified+,package:this package:elementary --defer --state /prod-state
 ```
 
-Configure the default-branch ruleset to require the exact check names `Ruff`, `Unit tests`, `dbt parse`, and `dbt build`. Keep the workflow-level dbt trigger unfiltered so required check names are always reported; `package:this` inside the build keeps the installed GA4 package's models from being rebuilt.
+Configure the default-branch ruleset to require the exact check names `Ruff`, `Unit tests`, `dbt parse`, and `dbt build`. Keep the workflow-level dbt trigger unfiltered so required check names are always reported; `package:this` inside the build keeps the installed GA4 package's models from being rebuilt, while `package:elementary` adds Elementary's own models back in so its tables get created and kept current.
 
 Create a Modal token for GitHub Actions, then add its values as repository secrets under **Settings → Secrets and variables → Actions**:
 
@@ -243,6 +243,16 @@ MODAL_TOKEN_SECRET
 ```
 
 The deploy and in-repository dbt CI jobs use these credentials. BigQuery, Cloud Storage, and Healthchecks values remain in Modal Secrets and are not copied into GitHub Actions.
+
+## Elementary observability
+
+[Elementary OSS](https://docs.elementary-data.com) collects dbt artifacts and test results into the `elementary` schema (`dbt_prd_elementary` in production) during every `mdbt build`. Generate a local HTML report from that production data with:
+
+```bash
+uv run edr report --profiles-dir . --project-dir . --env prod
+```
+
+The `elementary` profile's `prod` target reads `dbt_prd_elementary` with the same service-account credentials as the `aej` profile. The report opens as a local HTML file; this project does not host or publish it, and Elementary Cloud and Slack alerting are both out of scope.
 
 ## Checks
 

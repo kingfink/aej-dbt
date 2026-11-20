@@ -7,6 +7,7 @@ dependencies = []
 
 [dependency-groups]
 dev = [
+    "elementary-data[bigquery]==0.26.1",
     "modal[api-proxy-support]>=1.5.1,<2",
     "pre-commit>=4,<5",
     "ruff>=0.12,<1",
