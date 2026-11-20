@@ -14,6 +14,9 @@ dev = [
     "shandy-sqlfmt[jinjafmt]>=0.28,<1",
 ]
 
+[tool.sqlfmt]
+exclude = [".venv/**", "dbt_packages/**", "target/**"]
+
 [tool.ruff]
 line-length = 88
 target-version = "py312"
