@@ -54,3 +54,8 @@ jobs:
           else
             ./bin/mdbt build --select package:this
           fi
+      - name: Audit CI models against production
+        continue-on-error: true
+        run: |
+          ./bin/mdbt run-operation audit_compare_to_prod \
+            --args '{model_names: [dim_email_messages, dim_email_subscribers, fct_email_events]}'
