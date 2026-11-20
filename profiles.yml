@@ -31,3 +31,17 @@ aej:
       threads: 4
       timeout_seconds: 300
       priority: interactive
+
+elementary:
+  target: prod
+  outputs:
+    prod:
+      type: bigquery
+      method: service-account-json
+      keyfile_json: "{{ env_var('SERVICE_ACCOUNT_JSON') | as_native }}"
+      project: "{{ env_var('GCP_PROJECT_ID') }}"
+      dataset: dbt_prd_elementary
+      location: US
+      threads: 4
+      timeout_seconds: 300
+      priority: interactive

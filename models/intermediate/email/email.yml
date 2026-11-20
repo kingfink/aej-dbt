@@ -72,6 +72,8 @@ models:
         description: Job slug parsed from a clicked job link under the current job URL scheme.
       - name: link_utm_campaign
         description: Raw `utm_campaign` parameter value from the clicked link, resolved to a campaign name at the message and campaign grains.
+      - name: broadcast_id
+        description: Resend broadcast identifier, populated when the message was sent as part of a broadcast rather than a transactional or test send.
   - name: int_email_messages
     description: One row per provider email message across SendGrid and Resend, keyed to the campaign the message was part of.
     columns:
@@ -96,6 +98,8 @@ models:
           - not_null
       - name: campaign_name
         description: Campaign name carried up from the `utm_campaign` parameter on the message's tracked links.
+      - name: broadcast_id
+        description: Resend broadcast identifier, populated when the message was sent as part of a broadcast rather than a transactional or test send.
       - name: first_sent_ts
         description: Earliest sent-event timestamp for the message. Null when the provider never delivered a sent event, which happens for suppressed recipients and for the oldest SendGrid history.
       - name: first_event_ts
@@ -122,6 +126,8 @@ models:
       - name: campaign_name
         description: |
           Campaign name taken from the `utm_campaign` parameter on the campaign's tracked links, such as `weekly_jobs_2026_08_11`. Null for campaigns whose links carry no campaign parameter and for campaigns that were never clicked.
+      - name: broadcast_id
+        description: Resend broadcast identifier, populated when the campaign was sent as a Resend broadcast rather than a transactional or test send.
       - name: campaign_date
         tests:
           - not_null

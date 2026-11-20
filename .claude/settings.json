@@ -1,10 +1,13 @@
 {
+  "env": {
+    "AEJ_DBT_USER": "tf"
+  },
   "sandbox": {
     "network": {
-      "allowedDomains": ["pypi.org", "files.pythonhosted.org", "api.modal.com", "*.modal.com"]
+      "allowedDomains": ["pypi.org", "files.pythonhosted.org", "api.modal.com", "*.modal.com", "hub.getdbt.com", "codeload.github.com"]
     },
     "filesystem": {
-      "allowRead": ["~/.cache/uv", "~/.local/share/uv", "~/.cache/sqlfmt", "~/Library/Caches/sqlfmt", "~/.modal.toml"],
+      "allowRead": ["~/.cache/uv", "~/.local/share/uv", "~/.cache/sqlfmt", "~/Library/Caches/sqlfmt", "~/.modal.toml", "~/.local/bin/dbt"],
       "allowWrite": ["~/.cache/uv", "~/.cache/sqlfmt", "~/Library/Caches/sqlfmt"]
     }
   }
