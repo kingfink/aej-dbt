@@ -5,6 +5,9 @@ packages:
 - package: dbt-labs/dbt_utils
   name: dbt_utils
   version: 1.4.1
+- package: elementary-data/elementary
+  name: elementary
+  version: 0.26.1
 - tarball: https://codeload.github.com/kingfink/dbt-ga4/tar.gz/a0c70869df3070a189208a1d585f63dd4bd380e7
   name: ga4
-sha1_hash: ec6f4df9f4321925467d92e3decf978732c835fb
+sha1_hash: 2570a2de0c6701d34c40f679817666ab127c2297
