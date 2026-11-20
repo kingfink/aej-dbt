@@ -1,11 +1,10 @@
 {% macro audit_compare_to_prod(model_names, prod_dataset="dbt_prd") %}
     {#
         Compares each named model's current-target relation against its
-        counterpart in `prod_dataset`, reporting row-count and schema
-        differences to the run log without failing the run. A starting point
-        for data-diff coverage now that Datafold's OSS tool is archived; see
-        the dbt-labs/audit_helper package for richer value-level diffing once
-        its package-lock entry can be generated with registry access.
+        counterpart in `prod_dataset` using dbt-labs/audit_helper, reporting
+        row-count and schema differences to the run log without failing the
+        run. A starting point for data-diff coverage now that Datafold's OSS
+        tool is archived.
     #}
     {% if execute %}
         {% for model_name in model_names %}
@@ -21,27 +20,11 @@
 {% endmacro %}
 
 {% macro audit_log_relation_diff(current_relation, prod_relation) %}
-    {% set row_count_query %}
-        select
-            (select count(*) from {{ current_relation }}) as n_current_rows,
-            (select count(*) from {{ prod_relation }}) as n_prod_rows
-    {% endset %}
-    {% set row_counts = run_query(row_count_query) %}
-    {% set n_current_rows = row_counts.columns[0].values()[0] %}
-    {% set n_prod_rows = row_counts.columns[1].values()[0] %}
-
-    {% set current_column_set = (
-        adapter.get_columns_in_relation(current_relation)
-        | map(attribute="name")
-        | list
+    {% set row_counts = run_query(
+        audit_helper.compare_row_counts(current_relation, prod_relation)
     ) %}
-    {% set prod_column_set = (
-        adapter.get_columns_in_relation(prod_relation)
-        | map(attribute="name")
-        | list
-    ) %}
-    {% set current_only = current_column_set | reject("in", prod_column_set) | list %}
-    {% set prod_only = prod_column_set | reject("in", current_column_set) | list %}
+    {% set n_current_rows = row_counts.rows[0]["total_records"] %}
+    {% set n_prod_rows = row_counts.rows[1]["total_records"] %}
 
     {{
         log(
@@ -56,15 +39,23 @@
             info=true,
         )
     }}
-    {% if current_only or prod_only %}
+
+    {% set column_diffs = run_query(
+        audit_helper.compare_relation_columns(current_relation, prod_relation)
+    ) %}
+    {% set mismatched_columns = [] %}
+    {% for row in column_diffs.rows %}
+        {% if not row["in_both"] or not row["has_data_type_match"] %}
+            {% do mismatched_columns.append(row["column_name"]) %}
+        {% endif %}
+    {% endfor %}
+    {% if mismatched_columns %}
         {{
             log(
                 "audit: "
                 ~ current_relation.identifier
-                ~ " schema diff, current_only="
-                ~ current_only
-                ~ " prod_only="
-                ~ prod_only,
+                ~ " schema diff, mismatched columns="
+                ~ mismatched_columns,
                 info=true,
             )
         }}

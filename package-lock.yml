@@ -1,7 +1,10 @@
 packages:
+- package: dbt-labs/audit_helper
+  name: audit_helper
+  version: 0.11.0
 - package: dbt-labs/dbt_utils
   name: dbt_utils
-  version: 1.3.3
+  version: 1.4.1
 - tarball: https://codeload.github.com/kingfink/dbt-ga4/tar.gz/a0c70869df3070a189208a1d585f63dd4bd380e7
   name: ga4
-sha1_hash: 48106e6645550cdf39a6a472a2ae5591e9d5be37
+sha1_hash: ec6f4df9f4321925467d92e3decf978732c835fb
